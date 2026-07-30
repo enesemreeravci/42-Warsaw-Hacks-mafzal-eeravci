@@ -1,0 +1,85 @@
+<div class="projects-page">
+  <header>
+    <h1>Projects</h1>
+    <p class="subtitle">Common Core project completion and success metrics</p>
+  </header>
+
+  @if (error()) {
+    <app-error-state title="Couldn't load projects" [message]="error()!.message" (retry)="retry()" />
+  } @else if (loading()) {
+    <div class="skeleton-rows">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <app-loading-skeleton height="52px" radius="var(--radius-md)" />
+      }
+    </div>
+  } @else if (sortedRows().length === 0) {
+    <app-empty-state title="No projects found" />
+  } @else {
+    <div class="table-wrapper">
+      <table class="projects-table">
+        <thead>
+          <tr>
+            <th scope="col">
+              <button type="button" (click)="sortBy('projectName')">Project</button>
+            </th>
+            <th scope="col">
+              <button type="button" (click)="sortBy('completionCount')">
+                Completions
+                <mat-icon matTooltip="Total finished attempts (validated + failed) recorded for this project." [attr.aria-hidden]="true">info</mat-icon>
+              </button>
+            </th>
+            <th scope="col">
+              <button type="button" (click)="sortBy('successRate')">
+                Success rate
+                <mat-icon matTooltip="Validated completions divided by all finished attempts, as a percentage." [attr.aria-hidden]="true">info</mat-icon>
+              </button>
+            </th>
+            <th scope="col">
+              <button type="button" (click)="sortBy('averageFinalMark')">
+                Avg. mark
+                <mat-icon matTooltip="Average final_mark across finished attempts with a recorded mark." [attr.aria-hidden]="true">info</mat-icon>
+              </button>
+            </th>
+            <th scope="col">
+              <button type="button" (click)="sortBy('recentCompletionCount')">
+                Last 7 days
+                <mat-icon matTooltip="Completions recorded in the last 7 days." [attr.aria-hidden]="true">info</mat-icon>
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of sortedRows(); track row.projectId) {
+            <tr (click)="toggleExpand(row.projectId)" (keydown.enter)="toggleExpand(row.projectId)" tabindex="0" role="button" [attr.aria-expanded]="expandedProjectId() === row.projectId">
+              <td class="project-name">{{ row.projectName }}</td>
+              <td>{{ row.completionCount }}</td>
+              <td>{{ row.successRate }}%</td>
+              <td>{{ row.averageFinalMark }}</td>
+              <td>{{ row.recentCompletionCount }}</td>
+            </tr>
+            @if (expandedProjectId() === row.projectId) {
+              <tr class="expanded-row">
+                <td colspan="5">
+                  <div class="expanded-content">
+                    <div>
+                      <p class="label">Success rate definition</p>
+                      <p>Validated completions &divide; all finished attempts &times; 100.</p>
+                    </div>
+                    <div>
+                      <p class="label">Average mark definition</p>
+                      <p>Mean of <code>final_mark</code> across finished attempts that have a recorded mark.</p>
+                    </div>
+                    <div>
+                      <p class="label">Window</p>
+                      <p>Completions and success rate are computed across all available history; the 7-day column is a rolling window.</p>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

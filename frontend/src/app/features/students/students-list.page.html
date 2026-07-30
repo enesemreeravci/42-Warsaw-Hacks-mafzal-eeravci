@@ -1,0 +1,104 @@
+<div class="students-page">
+  <header class="students-page__header">
+    <div>
+      <h1>Students</h1>
+      <p class="subtitle">Warsaw Common Core community directory</p>
+    </div>
+
+    <div class="controls">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
+        <mat-label>Search by login or name</mat-label>
+        <input matInput [ngModel]="search()" (ngModelChange)="onSearchInput($event)" autocomplete="off" />
+        <mat-icon matPrefix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Sort by</mat-label>
+        <mat-select [value]="sort()" (selectionChange)="onSortChange($event.value)">
+          <mat-option value="level">Level</mat-option>
+          <mat-option value="login">Login</mat-option>
+          <mat-option value="completedProjects">Completed projects</mat-option>
+          <mat-option value="lastCompletion">Last completion</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-stroked-button type="button" (click)="onDirectionToggle()">
+        <mat-icon>{{ direction() === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+        {{ direction() === 'asc' ? 'Ascending' : 'Descending' }}
+      </button>
+
+      <label class="active-toggle">
+        <mat-slide-toggle [checked]="activeOnly()" (change)="onActiveOnlyChange($event.checked)">Active only</mat-slide-toggle>
+      </label>
+    </div>
+  </header>
+
+  @if (error()) {
+    <app-error-state title="Couldn't load students" [message]="error()!.message" (retry)="retry()" />
+  } @else if (loading()) {
+    <div class="skeleton-rows">
+      @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
+        <app-loading-skeleton height="56px" radius="var(--radius-md)" />
+      }
+    </div>
+  } @else if (result().items.length === 0) {
+    <app-empty-state title="No students found" description="Try adjusting your search or filters." />
+  } @else {
+    <div class="table-wrapper">
+      <table class="students-table">
+        <thead>
+          <tr>
+            <th scope="col">Student</th>
+            <th scope="col">Level</th>
+            <th scope="col">Completed</th>
+            <th scope="col">Current</th>
+            <th scope="col">Last completion</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (student of result().items; track student.id) {
+            <tr
+              (click)="goToStudent(student.login)"
+              (keydown.enter)="goToStudent(student.login)"
+              tabindex="0"
+              role="link"
+              [attr.aria-label]="'View profile for ' + student.displayName"
+            >
+              <td class="student-cell">
+                <app-avatar [imageUrl]="student.imageUrl" [name]="student.displayName" [size]="40" />
+                <div>
+                  <p class="student-name">{{ student.displayName }}</p>
+                  <p class="student-login">&commat;{{ student.login }}</p>
+                </div>
+              </td>
+              <td>{{ student.level.toFixed(2) }}</td>
+              <td>{{ student.completedProjectCount }}</td>
+              <td>{{ student.currentProjectCount }}</td>
+              <td>
+                @if (student.lastCompletedProject) {
+                  <span>{{ student.lastCompletedProject }}</span>
+                  <span class="muted">&nbsp;&middot; {{ student.lastCompletionDate | relativeTime }}</span>
+                } @else {
+                  <span class="muted">No completions yet</span>
+                }
+              </td>
+              <td>
+                <span class="status-chip" [class.status-chip--active]="student.active">{{ student.active ? 'Active' : 'Inactive' }}</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <mat-paginator
+      [length]="result().totalItems"
+      [pageSize]="result().pageSize"
+      [pageIndex]="result().page - 1"
+      [pageSizeOptions]="[10, 20, 50, 100]"
+      (page)="onPage($event)"
+      aria-label="Student list pagination"
+    />
+  }
+</div>

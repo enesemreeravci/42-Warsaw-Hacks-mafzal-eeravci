@@ -1,0 +1,21 @@
+services:
+  server:
+    build:
+      context: ./server
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      FRONTEND_ORIGIN: http://localhost:4200
+    ports:
+      - '3000:3000'
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - server
+    ports:
+      - '4200:8080'
+    restart: unless-stopped

@@ -1,0 +1,83 @@
+<div class="student-detail">
+  <a routerLink="/students" class="back-link">
+    <mat-icon>arrow_back</mat-icon>
+    Back to students
+  </a>
+
+  @if (notFound()) {
+    <app-empty-state title="Student not found" [description]="'No student with login &quot;' + login() + '&quot; was found.'" />
+  } @else if (error()) {
+    <app-error-state title="Couldn't load this student" [message]="error()!.message" (retry)="retry()" />
+  } @else if (loading()) {
+    <div class="skeleton-block">
+      <app-loading-skeleton height="96px" width="96px" radius="50%" />
+      <app-loading-skeleton height="24px" width="240px" />
+      <app-loading-skeleton height="200px" radius="var(--radius-lg)" />
+    </div>
+  } @else if (student(); as s) {
+    <header class="profile-header">
+      <app-avatar [imageUrl]="s.imageUrl" [name]="s.displayName" [size]="96" />
+      <div>
+        <h1>{{ s.displayName }}</h1>
+        <p class="login">&commat;{{ s.login }}</p>
+        <p class="meta">{{ s.campusName }} &middot; {{ s.cursusName }} &middot; {{ s.active ? 'Active' : 'Inactive' }}</p>
+      </div>
+    </header>
+
+    <div class="stat-row">
+      <div class="stat">
+        <p class="stat__label">Level</p>
+        <p class="stat__value">{{ s.level.toFixed(2) }}</p>
+      </div>
+      <div class="stat">
+        <p class="stat__label">Validated projects</p>
+        <p class="stat__value">{{ s.completedProjectCount }}</p>
+      </div>
+      <div class="stat">
+        <p class="stat__label">Current projects</p>
+        <p class="stat__value">{{ s.currentProjectCount }}</p>
+      </div>
+      <div class="stat">
+        <p class="stat__label">Success rate</p>
+        <p class="stat__value">{{ successRate() }}%</p>
+      </div>
+    </div>
+
+    <section>
+      <h2>Current projects</h2>
+      @if (s.currentProjects.length === 0) {
+        <app-empty-state title="No projects in progress" />
+      } @else {
+        <ul class="chip-list">
+          @for (p of s.currentProjects; track p.projectId) {
+            <li class="chip">{{ p.projectName }}</li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section>
+      <h2>Completion timeline</h2>
+      @if (s.recentCompletions.length === 0) {
+        <app-empty-state title="No completions yet" />
+      } @else {
+        <ol class="timeline">
+          @for (c of s.recentCompletions; track c.projectUserId) {
+            <li>
+              <span class="timeline__dot" [class.timeline__dot--fail]="!c.validated"></span>
+              <div>
+                <p class="timeline__project">
+                  {{ c.projectName }}
+                  @if (c.finalMark !== null) {
+                    <span class="timeline__mark">{{ c.finalMark }}/100</span>
+                  }
+                </p>
+                <p class="timeline__meta">{{ c.validated ? 'Validated' : 'Not validated' }} &middot; {{ c.completedAt | relativeTime }}</p>
+              </div>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+  }
+</div>

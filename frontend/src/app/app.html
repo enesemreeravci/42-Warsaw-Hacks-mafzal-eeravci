@@ -1,0 +1,101 @@
+<div class="app-shell" [class.app-shell--tv]="tvMode.enabled()">
+  <div class="visually-hidden" role="status" aria-live="polite">{{ announcement() }}</div>
+
+  @if (!tvMode.enabled()) {
+    <header class="app-header">
+      <div class="app-header__brand">
+        <span class="app-header__mark">42</span>
+        <div class="app-header__titles">
+          <p class="app-header__title">Warsaw Learning Progress Insight</p>
+          <p class="app-header__subtitle">Common Core community dashboard</p>
+        </div>
+      </div>
+
+      <nav class="app-header__nav" aria-label="Primary">
+        <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+        <a routerLink="/students" routerLinkActive="active">Students</a>
+        <a routerLink="/projects" routerLinkActive="active">Projects</a>
+        <a routerLink="/about" routerLinkActive="active">About</a>
+      </nav>
+
+      <div class="app-header__status">
+        @if (store.mockMode()) {
+          <span class="badge badge--demo" matTooltip="Live 42 API data is not configured; showing demo data.">Demo data</span>
+        }
+        @if (store.stale()) {
+          <span class="badge badge--stale" matTooltip="Showing the last successfully cached data while the 42 API is unreachable.">Stale data</span>
+        }
+        <span
+          class="badge"
+          [class.badge--ok]="store.ft42Status()?.reachable"
+          [class.badge--down]="store.ft42Status() && !store.ft42Status()?.reachable"
+          [matTooltip]="store.ft42Status()?.reachable ? 'The 42 API is reachable.' : 'The 42 API could not be reached.'"
+        >
+          <span class="status-dot" aria-hidden="true"></span>
+          {{ store.mockMode() ? 'Demo mode' : store.ft42Status()?.reachable ? '42 API online' : '42 API unreachable' }}
+        </span>
+      </div>
+
+      <div class="app-header__actions">
+        <span class="last-updated" matTooltip="Time of the last successful data refresh">
+          Updated {{ store.lastSuccessfulUpdate() | date: 'HH:mm:ss' }}
+        </span>
+
+        <button
+          mat-icon-button
+          type="button"
+          [matTooltip]="store.autoRefreshEnabled() ? 'Auto-refresh on (next in ' + store.countdownSeconds() + 's)' : 'Auto-refresh off'"
+          [attr.aria-label]="store.autoRefreshEnabled() ? 'Turn auto-refresh off' : 'Turn auto-refresh on'"
+          (click)="store.toggleAutoRefresh()"
+          [attr.aria-pressed]="store.autoRefreshEnabled()"
+        >
+          <mat-icon>{{ store.autoRefreshEnabled() ? 'autorenew' : 'pause_circle' }}</mat-icon>
+        </button>
+
+        <button mat-icon-button type="button" matTooltip="Refresh interval" aria-label="Choose refresh interval" [matMenuTriggerFor]="intervalMenu">
+          <mat-icon>schedule</mat-icon>
+        </button>
+        <mat-menu #intervalMenu="matMenu">
+          @for (seconds of refreshIntervalOptions; track seconds) {
+            <button mat-menu-item (click)="setRefreshInterval(seconds)">Every {{ seconds }}s</button>
+          }
+        </mat-menu>
+
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Refresh now (R)"
+          aria-label="Refresh now"
+          (click)="store.refreshNow()"
+          [disabled]="store.refreshing()"
+        >
+          <mat-icon [class.spin]="store.refreshing()">refresh</mat-icon>
+        </button>
+
+        <button mat-icon-button type="button" matTooltip="TV mode (T)" aria-label="Enter TV mode" (click)="toggleTvMode()">
+          <mat-icon>tv</mat-icon>
+        </button>
+
+        <button mat-icon-button type="button" matTooltip="Full screen" aria-label="Toggle full screen" (click)="toggleFullscreen()">
+          <mat-icon>{{ fullscreenActive() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+        </button>
+      </div>
+    </header>
+  } @else {
+    <div class="tv-bar">
+      <span class="tv-bar__title">42 Warsaw &middot; Learning Progress Insight</span>
+      <span class="tv-bar__clock">{{ clockLabel() }}</span>
+      <button mat-icon-button type="button" matTooltip="Exit TV mode (T)" aria-label="Exit TV mode" (click)="toggleTvMode()">
+        <mat-icon>close_fullscreen</mat-icon>
+      </button>
+    </div>
+  }
+
+  <main class="app-content" [class.app-content--tv]="tvMode.enabled()">
+    <router-outlet />
+  </main>
+
+  @if (tvMode.enabled()) {
+    <app-achievement-takeover-overlay [achievements]="store.data().livePulse?.achievements ?? []" />
+  }
+</div>

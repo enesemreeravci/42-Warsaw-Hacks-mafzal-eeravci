@@ -1,0 +1,101 @@
+<div class="dashboard" [class.dashboard--tv]="tvMode.enabled()">
+  @if (store.error() && !store.data().summary) {
+    <app-error-state
+      title="Couldn't load the dashboard"
+      [message]="store.error()!.message"
+      (retry)="retry()"
+    />
+  } @else if (store.loading()) {
+    <div class="skeleton-grid">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <app-loading-skeleton height="120px" radius="var(--radius-lg)" />
+      }
+    </div>
+  } @else {
+    @if (store.error()) {
+      <div class="inline-banner" role="alert">
+        Last refresh failed ({{ store.error()!.message }}). Showing the most recent successful data.
+      </div>
+    }
+
+    @if (!tvMode.enabled()) {
+      <section class="section" aria-labelledby="summary-heading">
+        <h2 id="summary-heading" class="visually-hidden">Community summary</h2>
+        <div class="summary-grid">
+          <app-stat-card label="Warsaw students" [value]="store.data().summary?.totalStudents ?? 0" />
+          <app-stat-card label="Active Common Core students" [value]="store.data().summary?.activeStudents ?? 0" [accent]="true" />
+          <app-stat-card label="Average level" [value]="(store.data().summary?.averageLevel ?? 0).toFixed(2)" />
+          <app-stat-card label="Completed (7 days)" [value]="store.data().summary?.completionsLast7Days ?? 0" />
+          <app-stat-card label="Completed (30 days)" [value]="store.data().summary?.completionsLast30Days ?? 0" />
+          <app-stat-card label="Last refresh" [value]="(store.lastSuccessfulUpdate() | date: 'HH:mm:ss') ?? '—'" />
+        </div>
+
+        <div class="panel">
+          <h3>System status</h3>
+          <app-system-status
+            [mockMode]="store.mockMode()"
+            [cacheStatus]="store.data().summary?.cacheStatus ?? 'fresh'"
+            [ft42Status]="store.ft42Status()"
+            [autoRefreshEnabled]="store.autoRefreshEnabled()"
+            [countdownSeconds]="store.countdownSeconds()"
+          />
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="celebration-heading">
+        <div class="panel">
+          <h3 id="celebration-heading">Recently completed</h3>
+          <app-celebration-carousel [completions]="store.data().recentCompletions" />
+        </div>
+      </section>
+
+      <section class="section section--split" aria-labelledby="trend-heading">
+        <div class="panel">
+          <div class="panel__header">
+            <h3 id="trend-heading">Completion trend</h3>
+            <mat-button-toggle-group [value]="store.selectedPeriodDays()" (change)="onPeriodChange($event)" aria-label="Display period">
+              @for (days of periodOptions; track days) {
+                <mat-button-toggle [value]="days">{{ days }}d</mat-button-toggle>
+              }
+            </mat-button-toggle-group>
+          </div>
+          <app-completion-trend-chart [points]="store.data().trend" />
+        </div>
+
+        <div class="panel">
+          <h3>Most completed projects</h3>
+          <app-top-projects-list [projects]="store.data().topProjects" />
+        </div>
+      </section>
+
+      <section class="section section--split" aria-labelledby="community-heading">
+        <div class="panel">
+          <h3 id="community-heading">Community progress</h3>
+          <app-community-progress [byLevel]="store.data().topStudentsByLevel" [byCompleted]="store.data().topStudentsByCompletedProjects" />
+        </div>
+
+        <div class="panel">
+          <h3>Featured student</h3>
+          <app-featured-student-card [student]="store.data().featuredStudent" />
+        </div>
+      </section>
+    } @else {
+      <div class="tv-stage">
+        @switch (tvMode.activeSection()) {
+          @case (0) {
+            <app-hive-node-map [students]="store.data().livePulse?.activeNow ?? []" />
+          }
+          @case (1) {
+            <app-achievement-spotlight [achievements]="store.data().livePulse?.achievements ?? []" />
+          }
+          @case (2) {
+            <app-xp-race-blackhole
+              [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []"
+              [blackHoleWatch]="store.data().livePulse?.blackHoleWatch ?? []"
+            />
+          }
+        }
+      </div>
+    }
+  }
+</div>

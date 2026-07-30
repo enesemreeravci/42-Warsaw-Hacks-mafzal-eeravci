@@ -1,0 +1,116 @@
+.projects-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+}
+
+.projects-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.projects-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    padding: 0;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.6;
+    }
+  }
+}
+
+.projects-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.projects-table tbody tr[role='button'] {
+  cursor: pointer;
+  transition: background var(--transition-standard);
+
+  &:hover,
+  &:focus-visible {
+    background: var(--color-bg-card-hover);
+  }
+}
+
+.project-name {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.expanded-row td {
+  background: var(--color-bg-elevated);
+}
+
+.expanded-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+}
+
+.expanded-content .label {
+  margin: 0 0 var(--space-1);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.expanded-content p {
+  margin: 0;
+}
+
+.expanded-content code {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0 4px;
+}

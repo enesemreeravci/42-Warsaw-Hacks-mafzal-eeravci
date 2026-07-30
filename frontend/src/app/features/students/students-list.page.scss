@@ -1,0 +1,126 @@
+.students-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.students-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.search-field {
+  min-width: 260px;
+}
+
+.active-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.students-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.students-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.students-table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-standard);
+}
+
+.students-table tbody tr:hover,
+.students-table tbody tr:focus-visible {
+  background: var(--color-bg-card-hover);
+}
+
+.students-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.student-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.student-name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.student-login {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.status-chip--active {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}

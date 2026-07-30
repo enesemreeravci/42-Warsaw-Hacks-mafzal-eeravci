@@ -1,0 +1,23 @@
+{
+  "name": "42-warsaw-progress-insight",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TV-friendly dashboard for the 42 Warsaw Hacks: Learning Progress Insight hackathon",
+  "workspaces": [
+    "frontend",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,frontend -c blue,magenta \"npm run dev --workspace server\" \"npm run start --workspace frontend\"",
+    "build": "npm run build --workspace server && npm run build --workspace frontend",
+    "test": "npm run test --workspace server && npm run test --workspace frontend",
+    "lint": "npm run lint --workspace server && npm run lint --workspace frontend",
+    "postinstall": "echo 'Root install complete. Copy .env.example to .env before running the server.'"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
