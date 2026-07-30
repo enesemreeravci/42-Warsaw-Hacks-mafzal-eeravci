@@ -33,7 +33,6 @@
         <div class="panel">
           <h3>System status</h3>
           <app-system-status
-            [mockMode]="store.mockMode()"
             [cacheStatus]="store.data().summary?.cacheStatus ?? 'fresh'"
             [ft42Status]="store.ft42Status()"
             [autoRefreshEnabled]="store.autoRefreshEnabled()"
@@ -93,6 +92,12 @@
               [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []"
               [blackHoleWatch]="store.data().livePulse?.blackHoleWatch ?? []"
             />
+          }
+          @case (3) {
+            <app-coalition-leaderboard [standings]="store.data().coalitions" />
+          }
+          @case (4) {
+            <app-live-evaluations [evaluations]="store.data().evaluations" />
           }
         }
       </div>

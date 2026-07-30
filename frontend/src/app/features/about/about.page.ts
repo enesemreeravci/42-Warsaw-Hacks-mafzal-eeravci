@@ -1,6 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DashboardStore } from '../../core/services/dashboard-store.service';
 
 @Component({
   selector: 'app-about-page',
@@ -11,7 +10,7 @@ import { DashboardStore } from '../../core/services/dashboard-store.service';
     <div class="about">
       <h1>About this dashboard</h1>
       <p class="lede">
-        42 Warsaw Learning Progress Insight is a TV-friendly dashboard built for the 42 Warsaw Hacks hackathon. It surfaces
+        42 Warsaw Insight is a TV-friendly dashboard built for the 42 Warsaw Hacks hackathon. It surfaces
         Common Core learning-progress and community metrics for the Warsaw campus, sourced from the official 42 API.
       </p>
 
@@ -37,13 +36,7 @@ import { DashboardStore } from '../../core/services/dashboard-store.service';
 
       <section>
         <h2>Mode</h2>
-        <p>
-          @if (store.mockMode()) {
-            This instance is running in <strong>demo data mode</strong> — no live 42 API credentials are configured.
-          } @else {
-            This instance is connected to the live 42 API via the backend-for-frontend server.
-          }
-        </p>
+        <p>This instance is connected live to the official 42 API via the backend-for-frontend server - there is no demo/offline mode.</p>
       </section>
 
       <section>
@@ -90,6 +83,4 @@ import { DashboardStore } from '../../core/services/dashboard-store.service';
     }
   `,
 })
-export class AboutPage {
-  protected readonly store = inject(DashboardStore);
-}
+export class AboutPage {}

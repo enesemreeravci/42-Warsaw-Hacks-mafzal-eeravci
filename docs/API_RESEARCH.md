@@ -80,22 +80,50 @@ any login and requires no user session.
 | Cursus discovery | `GET /v2/cursus` | Paginated; matched by name/slug |
 | Cursus detail | `GET /v2/cursus/:id` | Used when `FT42_CURSUS_ID` is preset |
 | Campus + cursus enrollment (bulk) | `GET /v2/cursus_users?filter[campus_id]=&filter[cursus_id]=` | Primary source of `StudentSummary` base data (login, level, image, active) |
-| Project completions (bulk) | `GET /v2/projects_users?filter[campus_id]=&filter[cursus_id]=` | Primary source of `ProjectCompletion` records |
+| Project completions (bulk) | `GET /v2/projects_users?filter[campus]=&filter[cursus]=` | Primary source of `ProjectCompletion` records. Note the **un-suffixed** filter names - see below |
 | Projects for a cursus | `GET /v2/cursus/:cursus_id/projects` | Powers the Projects page listing |
 | Individual profile | `GET /v2/users/:login` | Used only as a status probe target (`/v2/campus?page[size]=1` in practice) and documented here for completeness |
 | Active campus locations (bulk) | `GET /v2/campus/:id/locations?filter[active]=true` | Powers "The Hive" live node map (`ActiveSessionEntry.activeSince`); fetched best-effort - a missing scope, 403, or transient failure is caught and logged, and the dataset falls back to an empty active-sessions list rather than failing the dashboard |
+| Coalitions (bulk) | `GET /v2/blocs?filter[campus_id]=&filter[cursus_id]=` | Powers the Coalition Leaderboard. **Not** `/v2/coalitions?filter[campus_id]=` - see below. Each bloc embeds its campus's coalitions, each with `score` present directly (verified live: Warsaw's bloc has 3 coalitions) |
+| Peer evaluations (bulk) | `GET /v2/scale_teams?filter[campus_id]=&sort=-filled_at` | Powers Live Evaluations; only `final_mark`, `flag`, `filled_at`, `corrector`/`correcteds` logins, and a best-effort project name are read - `comment`/`feedback` are never fetched, see below |
+
+**A note on campus/bloc IDs, and on trusting filters that return 200 OK**: an earlier
+version of the feature spec for this project assumed Warsaw's campus ID was `51` and that
+coalitions lived under `/v2/blocs/1/coalitions`. Both were verified wrong against the live
+API during development - `campus 51` is Berlin, and `bloc 1` belongs to `campus_id: 1`
+(Paris, the original 42 campus). Warsaw is `campus_id` **67** (verified live). Separately,
+and more subtly: `GET /v2/coalitions?filter[campus_id]=67` returns **HTTP 200 with 373
+results from every campus** - the filter is silently ignored on this endpoint, it does not
+error or come back empty. Only `GET /v2/blocs?filter[campus_id]=67`, which returned exactly
+one real Warsaw bloc, is genuinely scoped. A 200 response and a plausible-looking payload is
+not sufficient evidence that a filter worked - this was only caught by checking whether the
+returned data actually looked like Warsaw (it didn't: the top results were Lausanne
+coalitions). Recorded here as a caution against trusting campus/bloc/cursus IDs, or filters
+that return success, from any source - including pasted specs - without checking the
+resulting data against something already known to be true.
 
 This project deliberately uses the **bulk, filterable** endpoints (`cursus_users`,
-`projects_users`) rather than iterating `GET /v2/campus/:id/users` and then calling
-`GET /v2/users/:id/projects_users` per student, which would be an N+1 pattern against a
-rate-limited API. The `filter[campus_id]` + `filter[cursus_id]` combination on
-`cursus_users`/`projects_users` is a common pattern used by community 42 dashboards; it is
-**not guaranteed by official documentation** to be exhaustive for every campus/cursus
-combination, so this is recorded as a known assumption (see `docs/LIMITATIONS.md`).
+`projects_users`, `blocs`, `scale_teams`) rather than iterating `GET /v2/campus/:id/users`
+and then calling per-student endpoints, which would be an N+1 pattern against a rate-limited
+API. Filter attribute names are **not consistent across endpoints** and not exhaustively
+documented publicly - `cursus_users` and `scale_teams` accept `filter[campus_id]`/
+`filter[cursus_id]`, but `projects_users` rejects those with an explicit `400 Filter Error`
+and wants `filter[campus]`/`filter[cursus]` instead (each endpoint's actual valid filter list
+is only knowable by triggering that error and reading its message, or from source not
+official docs). This was caught during development when the un-suffixed names were needed
+to get real data at all - see `docs/LIMITATIONS.md` for the full incident. Every filter
+combination in this codebase should be treated as "works as observed against Warsaw's data
+today," not as a documented guarantee.
+
+**Deliberately excluded**: `scale_teams.comment` and `scale_teams.feedback` are free-text
+peer-review commentary and are never fetched - `RawScaleTeam` in
+`server/src/models/types.ts` simply doesn't declare those fields. This is a privacy decision
+made during development after inspecting a real record, not an oversight; see
+`docs/LIMITATIONS.md`.
 
 Endpoints listed in the original hackathon brief that are **not currently wired up** (stretch
-scope): `/v2/achievements`, `/v2/coalitions`, `/v2/users/:id/titles`. The domain models and
-route structure are intentionally left open to add these without breaking existing consumers.
+scope): `/v2/achievements`, `/v2/users/:id/titles`. The domain models and route structure are
+intentionally left open to add these without breaking existing consumers.
 
 ## Pagination strategy
 
@@ -158,6 +186,10 @@ them into the domain models defined in `server/src/models/types.ts`:
 | `StudentSummary.activeSince` | `GET /v2/campus/:id/locations` (`begin_at` where `end_at == null`) | Resolved separately from `cursus_users`/`projects_users`, see the locations row above |
 | `AchievementEntry.isTakeover` | Derived: `finalMark >= 100` on a validated completion | Not a raw API field - triggers the full-screen "Level Up" takeover overlay in TV mode |
 | `XpLeaderboardEntry.weeklyXp` | Derived: sum of `final_mark` on validated completions in the trailing 7 days | A proxy metric, **not** official 42 XP/transactions data - see `docs/LIMITATIONS.md` |
+| `CoalitionStanding.score`/`rank` | `coalition.score` (raw) / derived (sort position) | `score` is read as-is; `rank` is assigned 1-based after sorting descending |
+| `EvaluationEntry.correctedDisplayName`/`correctedImageUrl` | Looked up from the already-loaded student roster by `correcteds[0].login` | Falls back to the raw login / `null` avatar if the corrected user isn't in the current cursus/campus dataset |
+| `EvaluationEntry.projectName` | `scale_team.team.name` (raw) | Best-effort; `null` if unresolved - UI shows "Evaluation" as a fallback label |
+| `EvaluationEntry` (no `comment`/`feedback` fields at all) | N/A - deliberately not read | See "Deliberately excluded" above |
 
 ## Metric definitions
 
@@ -173,10 +205,12 @@ project, average level, success rate).
 - `cursus_users[].end_at` semantics (cursus ended vs. student removed vs. blackholed) are not
   fully documented publicly; this project treats any non-null `end_at` as "not active" for
   simplicity (see Limitations).
-- The `filter[campus_id]` / `filter[cursus_id]` combination on `cursus_users` and
-  `projects_users` is not exhaustively documented and may behave differently across API
-  versions - this is the single biggest "works as observed, not as formally guaranteed"
-  assumption in this project.
+- Filter attribute names differ per endpoint and aren't exhaustively documented publicly -
+  `projects_users` rejects `filter[campus_id]`/`filter[cursus_id]` outright (`400 Filter
+  Error`) and requires `filter[campus]`/`filter[cursus]` instead, while `cursus_users` and
+  `scale_teams` want the `_id`-suffixed names. This is the single biggest "works as observed,
+  not as formally guaranteed" assumption in this project, and may behave differently across
+  API versions.
 
 ## Read-only scope and privacy approach
 

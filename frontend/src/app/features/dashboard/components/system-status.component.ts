@@ -9,7 +9,7 @@ import type { CacheStatus, Ft42Status } from '../../../core/models/api.models';
     <dl class="status-grid">
       <div>
         <dt>Data source</dt>
-        <dd [class.status-grid__value--warn]="mockMode()">{{ mockMode() ? 'Demo data' : 'Live 42 API' }}</dd>
+        <dd>Live 42 API</dd>
       </div>
       <div>
         <dt>Cache status</dt>
@@ -18,7 +18,7 @@ import type { CacheStatus, Ft42Status } from '../../../core/models/api.models';
       <div>
         <dt>42 API</dt>
         <dd [class.status-grid__value--ok]="ft42Status()?.reachable" [class.status-grid__value--danger]="ft42Status() && !ft42Status()?.reachable">
-          {{ mockMode() ? 'Not used (demo mode)' : ft42Status()?.reachable ? 'Reachable' : 'Unreachable' }}
+          {{ ft42Status()?.reachable ? 'Reachable' : 'Unreachable' }}
         </dd>
       </div>
       <div>
@@ -64,7 +64,6 @@ import type { CacheStatus, Ft42Status } from '../../../core/models/api.models';
   `,
 })
 export class SystemStatusComponent {
-  readonly mockMode = input.required<boolean>();
   readonly cacheStatus = input.required<CacheStatus>();
   readonly ft42Status = input<Ft42Status | null>(null);
   readonly autoRefreshEnabled = input.required<boolean>();

@@ -1,7 +1,7 @@
-# Pitch — 42 Warsaw Learning Progress Insight
+# Pitch — 42 Warsaw Insight
 
-**Target length: 5 minutes.** A 30-second fallback pitch is at the bottom in case the live
-demo or the 42 API is unavailable.
+**Target length: 5 minutes.** A 30-second fallback pitch is at the bottom in case the 42 API
+is briefly unreachable during the live demo.
 
 ## 1. The problem (30s)
 
@@ -19,19 +19,21 @@ directory - all sourced live from the official 42 API, refreshing automatically.
 ## 3. Live demonstration flow (90s)
 
 1. Land on `/dashboard` - point out the summary cards (active students, average level,
-   completions this week) and the live/demo status indicator.
+   completions this week) and the 42 API reachability indicator.
 2. Let the celebration carousel rotate - "this is what a student sees seconds after they
    validate a project."
 3. Switch the completion-trend period (7d → 30d) to show it's real aggregation, not a static
    image.
 4. Jump to `/students`, search a login, open a student's profile page.
 5. Hit the manual refresh button, then press **T** to show TV mode - full-screen, nav
-   hidden, clock in the corner, auto-rotating every 15s through three cinematic modes built
+   hidden, clock in the corner, auto-rotating every 15s through five cinematic modes built
    specifically for the big screen: **the Hive** (floating avatar nodes for everyone
    currently on campus, glowing brighter the longer they've been logged in), the **Level-Up
-   Spotlight** (a scrolling feed of recent completions), and the **XP Race / Black Hole
-   watch** (an animated weekly-XP bar race next to a pulsing danger-zone tracker for
-   students with an upcoming black hole date).
+   Spotlight** (a scrolling feed of recent completions), the **XP Race / Black Hole watch**
+   (an animated weekly-XP bar race next to a pulsing danger-zone tracker for students with an
+   upcoming black hole date), the **Coalition Leaderboard**, and **Live Evaluations** (recent
+   scale_team defenses - corrected student, project, pass/fail, mark; peer-review comments
+   are deliberately never fetched or shown, see `docs/LIMITATIONS.md`).
 6. If the timing lines up, call out the full-screen "Achievement Unlocked" takeover - it
    fires automatically over whichever mode is on screen the moment a completion scores
    100+, then hands control back to the rotation a few seconds later.
@@ -86,9 +88,10 @@ in the Social Space knew. Built by Muhammad Afzal for the 42 Warsaw Hacks hackat
 
 ## 30-second fallback pitch (if the live API/demo fails)
 
-"42 Warsaw Learning Progress Insight is a TV dashboard for the Social Space that shows
+"42 Warsaw Insight is a TV dashboard for the Social Space that shows
 Common Core progress, celebrates recent project completions, and lets students look each
 other up - all from the official 42 API, through a backend that keeps our API credentials
-completely out of the browser. It also runs in a demo-data mode, which is what you're
-looking at right now if the live connection isn't cooperating - same UI, same metrics, just
-seeded sample data instead of live Warsaw numbers."
+completely out of the browser. It runs entirely on live data - if the 42 API has a brief
+hiccup mid-demo, the dashboard keeps showing the last successfully fetched numbers with a
+visible 'Stale data' badge rather than going blank, and picks back up automatically once the
+API is reachable again."

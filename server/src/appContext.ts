@@ -9,9 +9,9 @@ import { TokenManager } from './services/tokenManager.js';
 export interface AppContext {
   config: AppConfig;
   logger: Logger;
-  tokenManager: TokenManager | null;
-  apiClient: Ft42ApiClient | null;
-  discoveryService: DiscoveryService | null;
+  tokenManager: TokenManager;
+  apiClient: Ft42ApiClient;
+  discoveryService: DiscoveryService;
   dataService: DataService;
   statusService: StatusService;
   startedAt: Date;
@@ -19,11 +19,11 @@ export interface AppContext {
 }
 
 export function createAppContext(config: AppConfig, logger: Logger): AppContext {
-  const tokenManager = config.mockMode ? null : new TokenManager(config, logger);
-  const apiClient = config.mockMode || !tokenManager ? null : new Ft42ApiClient(config, tokenManager, logger);
-  const discoveryService = config.mockMode || !apiClient ? null : new DiscoveryService(config, apiClient, logger);
+  const tokenManager = new TokenManager(config, logger);
+  const apiClient = new Ft42ApiClient(config, tokenManager, logger);
+  const discoveryService = new DiscoveryService(config, apiClient, logger);
   const dataService = new DataService(config, apiClient, discoveryService, logger);
-  const statusService = new StatusService(config.mockMode, apiClient, tokenManager, logger);
+  const statusService = new StatusService(apiClient, tokenManager, logger);
 
   return {
     config,

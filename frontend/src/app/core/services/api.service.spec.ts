@@ -22,7 +22,7 @@ describe('ApiService', () => {
 
   it('requests GET /api/health', () => {
     const envelope: ApiEnvelope<HealthResponse> = {
-      data: { status: 'ok', serverTime: 'now', uptimeSeconds: 1, mockMode: true, cacheAvailable: true, authReady: true },
+      data: { status: 'ok', serverTime: 'now', uptimeSeconds: 1, cacheAvailable: true, authReady: true },
       meta: { generatedAt: 'now', cached: false },
     };
 

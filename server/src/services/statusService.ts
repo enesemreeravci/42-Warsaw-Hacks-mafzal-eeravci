@@ -19,32 +19,21 @@ export class StatusService {
   private lastErrorSummary: string | null = null;
 
   constructor(
-    private readonly mockMode: boolean,
-    private readonly apiClient: Ft42ApiClient | null,
-    private readonly tokenManager: TokenManager | null,
+    private readonly apiClient: Ft42ApiClient,
+    private readonly tokenManager: TokenManager,
     private readonly logger: Logger,
   ) {}
 
   async check(): Promise<Ft42Status> {
-    if (this.mockMode) {
-      return {
-        reachable: true,
-        responseTimeMs: 0,
-        authenticated: true,
-        lastSuccessfulRequestAt: new Date().toISOString(),
-        lastErrorSummary: null,
-      };
-    }
-
     const start = Date.now();
     try {
-      await this.apiClient!.get('/v2/campus', { 'page[size]': 1 });
+      await this.apiClient.get('/v2/campus', { 'page[size]': 1 });
       this.lastSuccessfulRequestAt = new Date().toISOString();
       this.lastErrorSummary = null;
       return {
         reachable: true,
         responseTimeMs: Date.now() - start,
-        authenticated: this.tokenManager!.getStatus().authenticated,
+        authenticated: this.tokenManager.getStatus().authenticated,
         lastSuccessfulRequestAt: this.lastSuccessfulRequestAt,
         lastErrorSummary: null,
       };
@@ -55,7 +44,7 @@ export class StatusService {
       return {
         reachable: false,
         responseTimeMs: Date.now() - start,
-        authenticated: this.tokenManager!.getStatus().authenticated,
+        authenticated: this.tokenManager.getStatus().authenticated,
         lastSuccessfulRequestAt: this.lastSuccessfulRequestAt,
         lastErrorSummary: message,
       };

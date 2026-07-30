@@ -6,8 +6,8 @@
       <div class="app-header__brand">
         <span class="app-header__mark">42</span>
         <div class="app-header__titles">
-          <p class="app-header__title">Warsaw Learning Progress Insight</p>
-          <p class="app-header__subtitle">Common Core community dashboard</p>
+          <p class="app-header__title">Warsaw Insight</p>
+          <p class="app-header__subtitle"></p>
         </div>
       </div>
 
@@ -19,9 +19,6 @@
       </nav>
 
       <div class="app-header__status">
-        @if (store.mockMode()) {
-          <span class="badge badge--demo" matTooltip="Live 42 API data is not configured; showing demo data.">Demo data</span>
-        }
         @if (store.stale()) {
           <span class="badge badge--stale" matTooltip="Showing the last successfully cached data while the 42 API is unreachable.">Stale data</span>
         }
@@ -32,7 +29,7 @@
           [matTooltip]="store.ft42Status()?.reachable ? 'The 42 API is reachable.' : 'The 42 API could not be reached.'"
         >
           <span class="status-dot" aria-hidden="true"></span>
-          {{ store.mockMode() ? 'Demo mode' : store.ft42Status()?.reachable ? '42 API online' : '42 API unreachable' }}
+          {{ store.ft42Status()?.reachable ? '42 API online' : '42 API unreachable' }}
         </span>
       </div>
 

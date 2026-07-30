@@ -11,10 +11,12 @@ import { LoadingSkeletonComponent } from '../../shared/components/loading-skelet
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { AchievementSpotlightComponent } from './components/achievement-spotlight.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
+import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
 import { CommunityProgressComponent } from './components/community-progress.component';
 import { CompletionTrendChartComponent } from './components/completion-trend-chart.component';
 import { FeaturedStudentCardComponent } from './components/featured-student-card.component';
 import { HiveNodeMapComponent } from './components/hive-node-map.component';
+import { LiveEvaluationsComponent } from './components/live-evaluations.component';
 import { SystemStatusComponent } from './components/system-status.component';
 import { TopProjectsListComponent } from './components/top-projects-list.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
@@ -37,6 +39,8 @@ import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.compone
     HiveNodeMapComponent,
     AchievementSpotlightComponent,
     XpRaceBlackholeComponent,
+    CoalitionLeaderboardComponent,
+    LiveEvaluationsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dashboard.page.html',

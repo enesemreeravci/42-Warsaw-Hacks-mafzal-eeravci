@@ -1,4 +1,4 @@
-# 42 Warsaw Learning Progress Insight
+# 42 Warsaw Insight
 
 A TV-friendly dashboard built for the **42 Warsaw Hacks: Learning Progress Insight**
 hackathon. It shows Common Core learning-progress and community metrics for the 42 Warsaw
@@ -38,7 +38,8 @@ calls the 42 API directly, and never stores anything credential-shaped. Full det
 ## Prerequisites
 
 - Node.js 20+ (Node 22 LTS recommended) and npm 10+
-- A 42 API OAuth application (for live mode) — see below. **Not required for demo/mock mode.**
+- A 42 API OAuth application — see below. **Required**; this dashboard runs entirely on
+  live 42 API data and has no offline/demo mode.
 - Docker + Docker Compose (optional, for containerized runs)
 
 ## Installation
@@ -90,12 +91,11 @@ below). **Never commit `.env`** — it's already in `.gitignore`.
 | `CACHE_TTL_SECONDS` | `300` | Backend cache TTL |
 | `AUTO_REFRESH_SECONDS` | `300` | Frontend auto-refresh interval (served via `/api/config`) |
 | `REQUEST_CONCURRENCY` | `4` | Concurrency cap for any fallback per-item 42 API calls |
-| `MOCK_MODE` | `false` | Set `true` to run with generated demo data and no credentials |
 | `LOG_LEVEL` | `info` | pino log level |
 
-If `FT42_CLIENT_ID`/`FT42_CLIENT_SECRET` are missing and `MOCK_MODE` is not `true`, the
-backend **fails fast at startup** with a clear message telling you to either fill in
-credentials or set `MOCK_MODE=true`.
+If `FT42_CLIENT_ID`/`FT42_CLIENT_SECRET` are missing, the backend **fails fast at startup**
+with a clear message telling you to fill in credentials — there is no demo/offline mode to
+fall back to.
 
 ## Local development
 
@@ -108,17 +108,6 @@ Angular app's `/api/*` calls reach the backend) concurrently.
 
 - Frontend: **http://localhost:4200**
 - Backend: **http://localhost:3000**
-
-## Mock mode (no credentials required)
-
-```bash
-MOCK_MODE=true npm run dev
-```
-
-Or set `MOCK_MODE=true` in `.env`. This generates a deterministic, realistic demo dataset (24+
-students including the featured login, varied levels/marks/completion dates across real
-Common Core project names) — the entire UI works identically, with a visible **"Demo data"**
-badge in the header. No OAuth token is requested and no calls are made to the 42 API.
 
 ## Production build
 
@@ -139,7 +128,7 @@ forwards `/api` to the backend (this is exactly what the Docker setup below does
 ## Docker
 
 ```bash
-cp .env.example .env   # fill in credentials, or set MOCK_MODE=true
+cp .env.example .env   # fill in your 42 API credentials
 docker compose up --build
 ```
 
@@ -159,10 +148,12 @@ npm test              # backend (Vitest) + frontend (Vitest via Angular's unit-t
 npm run lint           # ESLint for both workspaces
 ```
 
-Backend tests cover: config validation, `TokenManager` (caching, invalidation, concurrent
-refresh de-duplication, malformed responses), the `TtlCache` (stampede protection, stale
-fallback), metric/normalization pure functions, and REST route behavior (via `supertest`
-against the app in `MOCK_MODE`).
+Backend tests cover: config validation, `TokenManager` (caching, automatic renewal,
+concurrent refresh de-duplication, malformed responses), `Ft42ApiClient` (401 retry-once,
+token-failure propagation), the `TtlCache` (stampede protection, stale fallback),
+metric/normalization pure functions, and REST route behavior (via `supertest` against the
+app wired to fixture-backed fakes of the 42 API client, so no live credentials or network
+access are needed to run the suite).
 
 Frontend tests cover: the app shell component, a presentational component (`StatCardComponent`),
 `AvatarComponent`, the `RelativeTimePipe`, and `ApiService` (request shape/URL assertions via
@@ -177,12 +168,15 @@ and semantics are documented inline in `server/src/routes/*.ts`; a summary:
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Liveness/status probe |
-| GET | `/api/config` | Sanitized public config (campus/cursus, refresh interval, mock mode) |
+| GET | `/api/config` | Sanitized public config (campus/cursus, refresh interval) |
 | GET | `/api/dashboard/summary` | Headline dashboard numbers |
 | GET | `/api/dashboard/recent-completions` | Newest validated completions (`days`, `limit`) |
 | GET | `/api/dashboard/completion-trend` | Daily completion counts (`days`) |
 | GET | `/api/dashboard/top-projects` | Most-completed projects (`days`, `limit`) |
 | GET | `/api/dashboard/top-students` | Rankings (`metric`, `limit`, `days`) |
+| GET | `/api/dashboard/live-pulse` | TV mode: active sessions, weekly XP leaderboard, black hole watch, achievement feed |
+| GET | `/api/dashboard/coalitions` | Coalition leaderboard, ranked by score |
+| GET | `/api/dashboard/evaluations` | Recent peer evaluations (`limit`) - corrected student, project, pass/fail flag, mark only; never comments/feedback |
 | POST | `/api/dashboard/refresh` | Invalidate + eagerly reload the cache |
 | GET | `/api/students` | Paginated/searchable/sortable student list |
 | GET | `/api/students/:login` | Student profile + progress detail |
@@ -203,7 +197,7 @@ and semantics are documented inline in `server/src/routes/*.ts`; a summary:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Backend exits immediately with a `[CONFIG ERROR]` | Missing `FT42_CLIENT_ID`/`SECRET` | Fill in `.env`, or set `MOCK_MODE=true` |
+| Backend exits immediately with a `[CONFIG ERROR]` | Missing `FT42_CLIENT_ID`/`SECRET` | Fill in `.env` - both are always required, there is no demo/offline mode |
 | Dashboard shows "Stale data" badge | 42 API temporarily unreachable | Expected behavior — last good data is kept; check `/api/status/42` |
 | Frontend can't reach the backend in dev | `ng serve` not using the proxy | Use `npm run dev` (or `npm run start --workspace frontend`, which passes `--proxy-config`) |
 | "Campus/Cursus could not be found" at startup | `FT42_CAMPUS_NAME`/`FT42_CURSUS_NAME` doesn't match any 42 API record | Check spelling, or set `FT42_CAMPUS_ID`/`FT42_CURSUS_ID` directly |
@@ -229,7 +223,7 @@ field-completeness assumptions. Full details: [`docs/LIMITATIONS.md`](docs/LIMIT
 
 - [x] Working Angular + Express monorepo, runnable via root npm scripts
 - [x] Live 42 API integration via a credential-safe backend-for-frontend
-- [x] Mock/demo mode requiring no credentials
+- [x] Always-live 42 API integration - no demo/offline fallback, hardened with in-memory caching, retry/backoff, and stale-data serving on transient outages
 - [x] TV mode for 1920×1080 display
 - [x] `docs/API_RESEARCH.md`, `docs/ARCHITECTURE.md`, `docs/METRICS.md`,
       `docs/LIMITATIONS.md`, `docs/PITCH.md`

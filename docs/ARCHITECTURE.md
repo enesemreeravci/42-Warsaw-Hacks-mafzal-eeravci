@@ -5,7 +5,7 @@
 1. Show a live, TV-friendly view of 42 Warsaw Common Core learning progress.
 2. Never expose 42 API credentials to the browser, Docker image, or logs.
 3. Stay resilient to upstream 42 API slowness/outages (stale-cache fallback).
-4. Run identically with or without live credentials (`MOCK_MODE=true`).
+4. Run entirely on live 42 API data - no offline/demo mode.
 5. Be simple enough to operate as a hackathon proof of concept, with a clear path to a
    production-hardened version.
 
@@ -27,8 +27,7 @@ flowchart LR
     Angular -->|"/api/* only"| BFF["Express Backend<br/>(TypeScript, BFF)"]
     BFF --> Cache["In-Memory Cache<br/>(TTL + stale fallback)"]
     BFF --> OAuth["42 OAuth Token Endpoint<br/>POST /oauth/token"]
-    BFF --> API["42 API v2<br/>(campus, cursus, users, projects_users)"]
-    BFF -.->|"MOCK_MODE=true"| Mock["In-memory demo dataset"]
+    BFF --> API["42 API v2<br/>(campus, cursus, users, projects_users, coalitions, scale_teams)"]
 ```
 
 ## Frontend architecture
@@ -49,8 +48,11 @@ flowchart LR
   `document.hidden` (via a small `VisibilityService`) or when auto-refresh is toggled off,
   and never starts an overlapping fetch (`isFetching` guard).
 - **TV mode**: a `TvModeService` holds an `enabled` flag and a rotating `activeSection`
-  index. The dashboard page rotates through 4 section groups every `rotationSeconds` (default
-  15s, keyboard-adjustable is a stretch item) while TV mode is on and the tab is visible.
+  index. The non-TV desk view always shows all 4 dashboard panels; TV mode instead rotates
+  through 5 full-bleed spectacle modes (Hive live node map, Level-Up spotlight, XP race +
+  black hole watch, coalition leaderboard, live evaluations) every `rotationSeconds` (default
+  15s) while the tab is visible, plus a full-screen achievement takeover overlay that can
+  interrupt any mode.
 - **Charts**: Chart.js via `ng2-charts`' `BaseChartDirective`; every chart also renders a
   plain-text summary (`aria-label` + visually-hidden `<p>`) for screen readers.
 
@@ -59,9 +61,8 @@ flowchart LR
 - `server/src/index.ts` boots config validation → logger → `AppContext` (dependency
   container) → Express `app`.
 - `appContext.ts` wires: `TokenManager` → `Ft42ApiClient` → `DiscoveryService` →
-  `DataService` (the aggregation/caching orchestrator) → `StatusService`. In `MOCK_MODE`,
-  the first three are simply `null` and `DataService` serves an in-memory generated dataset
-  instead - no OAuth token is ever requested in mock mode.
+  `DataService` (the aggregation/caching orchestrator) → `StatusService`, all unconditionally
+  - `FT42_CLIENT_ID`/`FT42_CLIENT_SECRET` are required at startup (see `config/env.ts`).
 - **Routes** (`server/src/routes/*.ts`) are thin: parse/validate query params, call
   `DataService`/pure metric functions, wrap the result in the `{ data, meta }` envelope.
 - **Pure functions**: all metric math (`server/src/services/metrics.ts`) and normalization
@@ -124,8 +125,8 @@ core student+completion dataset, and the project list. `getOrLoad(key, loader)`:
 ## Security decisions
 
 - The 42 Client ID/Secret exist **only** as backend environment variables, validated at
-  startup by a Zod schema (`server/src/config/env.ts`) that fails fast with a actionable
-  error message when missing (unless `MOCK_MODE=true`).
+  startup by a Zod schema (`server/src/config/env.ts`) that fails fast with an actionable
+  error message when missing - both are always required.
 - All 42 API calls originate from the backend; the frontend's `ApiService` only ever calls
   same-origin `/api/*` paths - never `api.intra.42.fr` directly, and never sends an
   `Authorization` header (there's nothing for it to send).

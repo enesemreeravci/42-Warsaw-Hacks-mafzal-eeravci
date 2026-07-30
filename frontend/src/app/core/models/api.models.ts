@@ -60,6 +60,30 @@ export interface LivePulseResponse {
   achievements: AchievementEntry[];
 }
 
+/** A coalition's standing on the campus leaderboard. */
+export interface CoalitionStanding {
+  id: number;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  color: string | null;
+  score: number;
+  rank: number;
+}
+
+/** A recently-filled peer evaluation. `comment`/`feedback` are never fetched by the backend - see docs/LIMITATIONS.md. */
+export interface EvaluationEntry {
+  id: number;
+  correctedLogin: string;
+  correctedDisplayName: string;
+  correctedImageUrl: string | null;
+  projectName: string | null;
+  finalMark: number | null;
+  flagName: string | null;
+  flagPositive: boolean | null;
+  filledAt: string;
+}
+
 export interface StudentDetail extends StudentSummary {
   currentProjects: Array<{ projectId: number; projectName: string; status: string }>;
   completedProjects: ProjectCompletion[];
@@ -132,14 +156,12 @@ export interface AppConfigResponse {
   featuredLogin: string;
   autoRefreshSeconds: number;
   cacheTtlSeconds: number;
-  mockMode: boolean;
 }
 
 export interface HealthResponse {
   status: string;
   serverTime: string;
   uptimeSeconds: number;
-  mockMode: boolean;
   cacheAvailable: boolean;
   authReady: boolean;
 }

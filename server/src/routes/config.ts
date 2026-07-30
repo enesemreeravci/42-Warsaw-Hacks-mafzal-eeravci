@@ -16,7 +16,6 @@ export function configRouter(ctx: AppContext): Router {
         featuredLogin: ctx.config.featuredLogin,
         autoRefreshSeconds: ctx.config.autoRefreshSeconds,
         cacheTtlSeconds: ctx.config.cacheTtlSeconds,
-        mockMode: ctx.config.mockMode,
       });
     }),
   );

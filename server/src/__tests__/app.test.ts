@@ -1,26 +1,104 @@
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createApp } from '../app.js';
-import { createAppContext } from '../appContext.js';
+import type { AppContext } from '../appContext.js';
 import { loadConfig } from '../config/env.js';
 import { createLogger } from '../config/logger.js';
+import { DataService } from '../services/dataService.js';
+import { StatusService } from '../services/statusService.js';
+import type { Ft42ApiClient } from '../services/ft42ApiClient.js';
+import type { DiscoveryService } from '../services/discoveryService.js';
+import type { TokenManager } from '../services/tokenManager.js';
+import type { RawCursusUser, RawProject, RawProjectUser } from '../models/types.js';
+
+/**
+ * Fixture-backed integration tests. Rather than a separate "mock mode" branch in
+ * production code, these fake only the network boundary (Ft42ApiClient/DiscoveryService)
+ * so the app exercises the exact same DataService/StatusService code path a live deployment
+ * uses.
+ */
+const cursusUsersFixture: RawCursusUser[] = [
+  { id: 1, level: 5.5, end_at: null, blackholed_at: null, user: { id: 1, login: 'mafzal', displayname: 'Muhammad Afzal' } },
+  { id: 2, level: 3.2, end_at: null, blackholed_at: null, user: { id: 2, login: 'astudent', displayname: 'A Student' } },
+  { id: 3, level: 7.1, end_at: null, blackholed_at: null, user: { id: 3, login: 'bstudent', displayname: 'B Student' } },
+  { id: 4, level: 1.0, end_at: null, blackholed_at: null, user: { id: 4, login: 'cstudent', displayname: 'C Student' } },
+  { id: 5, level: 9.9, end_at: null, blackholed_at: null, user: { id: 5, login: 'dstudent', displayname: 'D Student' } },
+];
+
+const projectUsersFixture: RawProjectUser[] = [
+  {
+    id: 100,
+    final_mark: 100,
+    status: 'finished',
+    'validated?': true,
+    marked_at: new Date().toISOString(),
+    user: { id: 1, login: 'mafzal', displayname: 'Muhammad Afzal' },
+    project: { id: 1, name: 'Libft' },
+  },
+  {
+    id: 101,
+    final_mark: 80,
+    status: 'finished',
+    'validated?': true,
+    marked_at: new Date().toISOString(),
+    user: { id: 2, login: 'astudent', displayname: 'A Student' },
+    project: { id: 1, name: 'Libft' },
+  },
+];
+
+const projectsFixture: RawProject[] = [{ id: 1, name: 'Libft' }];
+
+function fakePaginate(path: string): Promise<unknown[]> {
+  if (path === '/v2/cursus_users') return Promise.resolve(cursusUsersFixture);
+  if (path === '/v2/projects_users') return Promise.resolve(projectUsersFixture);
+  if (path.includes('/locations')) return Promise.resolve([]);
+  if (path.endsWith('/projects')) return Promise.resolve(projectsFixture);
+  return Promise.resolve([]);
+}
 
 let app: Express;
 
 beforeAll(() => {
-  const config = loadConfig({ MOCK_MODE: 'true', FEATURED_LOGIN: 'mafzal' });
+  const config = loadConfig({ FT42_CLIENT_ID: 'id', FT42_CLIENT_SECRET: 'secret', FEATURED_LOGIN: 'mafzal' });
   const logger = createLogger({ logLevel: 'silent' });
-  const ctx = createAppContext(config, logger);
+
+  const fakeApiClient = {
+    paginate: vi.fn().mockImplementation((path: string) => fakePaginate(path)),
+    get: vi.fn().mockResolvedValue([{ id: 67, name: 'Warsaw' }]),
+  } as unknown as Ft42ApiClient;
+
+  const fakeDiscoveryService = {
+    discoverAll: vi.fn().mockResolvedValue({ campusId: 67, campusName: 'Warsaw', cursusId: 21, cursusName: '42cursus' }),
+  } as unknown as DiscoveryService;
+
+  const fakeTokenManager = {
+    getAccessToken: vi.fn().mockResolvedValue('fake-token'),
+    invalidate: vi.fn(),
+    getStatus: vi.fn().mockReturnValue({ authenticated: true, lastSuccessAt: new Date().toISOString(), lastError: null }),
+  } as unknown as TokenManager;
+
+  const ctx: AppContext = {
+    config,
+    logger,
+    tokenManager: fakeTokenManager,
+    apiClient: fakeApiClient,
+    discoveryService: fakeDiscoveryService,
+    dataService: new DataService(config, fakeApiClient, fakeDiscoveryService, logger),
+    statusService: new StatusService(fakeApiClient, fakeTokenManager, logger),
+    startedAt: new Date(),
+    refreshInProgress: false,
+  };
+
   app = createApp(ctx);
 });
 
 describe('GET /api/health', () => {
-  it('reports ok status and mock mode', async () => {
+  it('reports ok status', async () => {
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('ok');
-    expect(res.body.data.mockMode).toBe(true);
+    expect(res.body.data.authReady).toBe(true);
   });
 });
 

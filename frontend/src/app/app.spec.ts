@@ -15,6 +15,7 @@ class DashboardStoreStub {
     topStudentsByLevel: [],
     topStudentsByCompletedProjects: [],
     featuredStudent: null,
+    livePulse: null,
   });
   loading = signal(false);
   refreshing = signal(false);
@@ -27,7 +28,6 @@ class DashboardStoreStub {
   countdownSeconds = signal(300);
   selectedPeriodDays = signal(30);
   config = signal(null);
-  mockMode = signal(true);
   ft42Status = signal(null);
 
   init = (): void => undefined;
@@ -61,14 +61,6 @@ describe('App', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.app-header__title')?.textContent).toContain('Warsaw Learning Progress Insight');
-  });
-
-  it('shows the demo data badge when the store reports mock mode', async () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.badge--demo')?.textContent).toContain('Demo data');
+    expect(compiled.querySelector('.app-header__title')?.textContent).toContain('Warsaw Insight');
   });
 });

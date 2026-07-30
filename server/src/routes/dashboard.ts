@@ -111,6 +111,23 @@ export function dashboardRouter(ctx: AppContext): Router {
     }),
   );
 
+  router.get(
+    '/dashboard/coalitions',
+    asyncHandler(async (_req, res) => {
+      const standings = await ctx.dataService.getCoalitions();
+      sendData(res, standings);
+    }),
+  );
+
+  router.get(
+    '/dashboard/evaluations',
+    asyncHandler(async (req, res) => {
+      const limit = clampInt(req.query.limit, 15, 1, 50);
+      const evaluations = await ctx.dataService.getRecentEvaluations(limit);
+      sendData(res, evaluations);
+    }),
+  );
+
   router.post(
     '/dashboard/refresh',
     asyncHandler(async (_req, res) => {

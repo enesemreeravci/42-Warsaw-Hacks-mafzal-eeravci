@@ -29,12 +29,9 @@ function main(): void {
 
   app.listen(config.port, () => {
     logger.info(
-      { port: config.port, mockMode: config.mockMode, frontendOrigin: config.frontendOrigin },
+      { port: config.port, frontendOrigin: config.frontendOrigin },
       `42 Warsaw Progress Insight server listening on port ${config.port}`,
     );
-    if (config.mockMode) {
-      logger.warn('Running in MOCK_MODE - no 42 API credentials required, serving demo data.');
-    }
   });
 }
 

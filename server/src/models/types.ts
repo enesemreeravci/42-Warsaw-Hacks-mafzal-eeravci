@@ -135,6 +135,33 @@ export interface LivePulse {
   achievements: AchievementEntry[];
 }
 
+/** A coalition's standing on the campus leaderboard. */
+export interface CoalitionStanding {
+  id: number;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  color: string | null;
+  score: number;
+  rank: number;
+}
+
+/**
+ * A recently-filled peer evaluation. Deliberately excludes `comment`/`feedback` - see
+ * `RawScaleTeam` below and `docs/LIMITATIONS.md` for why.
+ */
+export interface EvaluationEntry {
+  id: number;
+  correctedLogin: string;
+  correctedDisplayName: string;
+  correctedImageUrl: string | null;
+  projectName: string | null;
+  finalMark: number | null;
+  flagName: string | null;
+  flagPositive: boolean | null;
+  filledAt: string;
+}
+
 /** Minimal raw 42 API shapes we rely on (subset only, fields vary in completeness). */
 export interface RawCampus {
   id: number;
@@ -200,5 +227,46 @@ export interface RawProjectUser {
   user?: RawUser;
   project?: RawProject;
   cursus_ids?: number[];
+  [key: string]: unknown;
+}
+
+export interface RawCoalition {
+  id: number;
+  name: string;
+  slug: string;
+  image_url?: string | null;
+  color?: string | null;
+  score?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * A `/v2/blocs` record. Unlike `/v2/coalitions?filter[campus_id]=`, which silently ignores
+ * the filter and returns coalitions from every campus, a bloc is genuinely scoped to one
+ * `campus_id`/`cursus_id` pair and embeds exactly that campus's coalitions - verified live
+ * against Warsaw (`campus_id: 67`), see `docs/API_RESEARCH.md`.
+ */
+export interface RawBloc {
+  id: number;
+  campus_id: number;
+  cursus_id: number;
+  coalitions: RawCoalition[];
+  [key: string]: unknown;
+}
+
+/**
+ * A `/v2/scale_teams` record. `comment` and `feedback` are intentionally NOT declared here -
+ * they hold free-text peer-review commentary this dashboard never displays publicly (see
+ * `docs/LIMITATIONS.md`). Omitting them from the type means there is no code path that could
+ * accidentally read or forward them.
+ */
+export interface RawScaleTeam {
+  id: number;
+  final_mark: number | null;
+  filled_at: string | null;
+  flag?: { id: number; name: string; positive: boolean } | null;
+  corrector?: { id: number; login: string } | null;
+  correcteds?: Array<{ id: number; login: string }>;
+  team?: { name?: string; project_id?: number } | null;
   [key: string]: unknown;
 }

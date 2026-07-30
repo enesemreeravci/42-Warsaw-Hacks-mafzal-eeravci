@@ -10,9 +10,8 @@ export function healthRouter(ctx: AppContext): Router {
       status: 'ok',
       serverTime: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
-      mockMode: ctx.config.mockMode,
       cacheAvailable: true,
-      authReady: ctx.config.mockMode || Boolean(ctx.config.ft42ClientId && ctx.config.ft42ClientSecret),
+      authReady: Boolean(ctx.config.ft42ClientId && ctx.config.ft42ClientSecret),
     });
   });
 

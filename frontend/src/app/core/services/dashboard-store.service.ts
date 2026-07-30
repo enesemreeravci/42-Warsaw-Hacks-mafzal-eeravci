@@ -1,10 +1,12 @@
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, filter, forkJoin, of, switchMap, tap, timer } from 'rxjs';
 import type {
   AppConfigResponse,
+  CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
+  EvaluationEntry,
   Ft42Status,
   LivePulseResponse,
   ProjectCompletion,
@@ -28,6 +30,8 @@ export interface DashboardData {
   topStudentsByCompletedProjects: StudentRanking[];
   featuredStudent: StudentDetail | null;
   livePulse: LivePulseResponse | null;
+  coalitions: CoalitionStanding[];
+  evaluations: EvaluationEntry[];
 }
 
 /**
@@ -49,6 +53,8 @@ export class DashboardStore {
     topStudentsByCompletedProjects: [],
     featuredStudent: null,
     livePulse: null,
+    coalitions: [],
+    evaluations: [],
   });
 
   private readonly loadingSignal = signal(true);
@@ -76,7 +82,6 @@ export class DashboardStore {
   readonly countdownSeconds = this.countdownSecondsSignal.asReadonly();
   readonly selectedPeriodDays = this.selectedPeriodDaysSignal.asReadonly();
   readonly config = this.configSignal.asReadonly();
-  readonly mockMode = computed(() => this.configSignal()?.mockMode ?? false);
   readonly ft42Status = this.ft42StatusSignal.asReadonly();
 
   private readonly manualRefresh$ = new Subject<void>();
@@ -180,6 +185,8 @@ export class DashboardStore {
       topStudentsByCompletedProjects: this.api.getTopStudents('completedProjects', 8),
       featuredStudent: this.api.getStudentDetail(featuredLogin).pipe(catchError(() => of(null))),
       livePulse: this.api.getLivePulse().pipe(catchError(() => of(null))),
+      coalitions: this.api.getCoalitions().pipe(catchError(() => of(null))),
+      evaluations: this.api.getEvaluations().pipe(catchError(() => of(null))),
     })
       .pipe(
         tap(() => {
@@ -207,6 +214,8 @@ export class DashboardStore {
           topStudentsByCompletedProjects: result.topStudentsByCompletedProjects.data,
           featuredStudent: result.featuredStudent?.data ?? null,
           livePulse: result.livePulse?.data ?? null,
+          coalitions: result.coalitions?.data ?? [],
+          evaluations: result.evaluations?.data ?? [],
         });
 
         this.staleSignal.set(Boolean(result.summary.meta.staleData));

@@ -1,11 +1,5 @@
 import { z } from 'zod';
 
-const boolFromString = (defaultValue: boolean) =>
-  z
-    .string()
-    .optional()
-    .transform((v) => (v === undefined ? defaultValue : v.toLowerCase() === 'true'));
-
 const intFromString = (defaultValue: number) =>
   z
     .string()
@@ -28,7 +22,6 @@ const envSchema = z
     CACHE_TTL_SECONDS: intFromString(300),
     AUTO_REFRESH_SECONDS: intFromString(300),
     REQUEST_CONCURRENCY: intFromString(4),
-    MOCK_MODE: boolFromString(false),
     LOG_LEVEL: z.string().default('info'),
   })
   .transform((env) => ({
@@ -45,7 +38,6 @@ const envSchema = z
     cacheTtlSeconds: env.CACHE_TTL_SECONDS,
     autoRefreshSeconds: env.AUTO_REFRESH_SECONDS,
     requestConcurrency: env.REQUEST_CONCURRENCY,
-    mockMode: env.MOCK_MODE,
     logLevel: env.LOG_LEVEL,
   }));
 
@@ -62,14 +54,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
 
   const config = parsed.data;
 
-  if (!config.mockMode) {
-    if (!config.ft42ClientId || !config.ft42ClientSecret) {
-      throw new ConfigValidationError(
-        'FT42_CLIENT_ID and FT42_CLIENT_SECRET are required unless MOCK_MODE=true. ' +
-          'Copy .env.example to .env and fill in your 42 API application credentials, ' +
-          'or set MOCK_MODE=true to run with demo data.',
-      );
-    }
+  if (!config.ft42ClientId || !config.ft42ClientSecret) {
+    throw new ConfigValidationError(
+      'FT42_CLIENT_ID and FT42_CLIENT_SECRET are required. ' +
+        'Copy .env.example to .env and fill in your 42 API application credentials.',
+    );
   }
 
   return config;

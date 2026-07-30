@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Backend-for-frontend for the 42 Warsaw Learning Progress Insight dashboard",
+  "description": "Backend-for-frontend for the 42 Warsaw Insight dashboard",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

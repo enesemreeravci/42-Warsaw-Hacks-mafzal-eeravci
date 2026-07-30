@@ -4,8 +4,10 @@ import { Observable, map } from 'rxjs';
 import type {
   ApiEnvelope,
   AppConfigResponse,
+  CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
+  EvaluationEntry,
   Ft42Status,
   HealthResponse,
   LivePulseResponse,
@@ -61,6 +63,15 @@ export class ApiService {
 
   getLivePulse(): Observable<ApiEnvelope<LivePulseResponse>> {
     return this.http.get<ApiEnvelope<LivePulseResponse>>(`${this.base}/dashboard/live-pulse`);
+  }
+
+  getCoalitions(): Observable<ApiEnvelope<CoalitionStanding[]>> {
+    return this.http.get<ApiEnvelope<CoalitionStanding[]>>(`${this.base}/dashboard/coalitions`);
+  }
+
+  getEvaluations(limit = 15): Observable<ApiEnvelope<EvaluationEntry[]>> {
+    const params = new HttpParams().set('limit', limit);
+    return this.http.get<ApiEnvelope<EvaluationEntry[]>>(`${this.base}/dashboard/evaluations`, { params });
   }
 
   refreshDashboard(): Observable<ApiEnvelope<{ status: string; startedAt: string; finishedAt?: string }>> {

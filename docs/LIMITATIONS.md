@@ -30,12 +30,19 @@ it's listed here.
   active cursus enrollments or ~10,000 project-completion records, the dataset would be
   silently truncated rather than growing the request count unboundedly. Warsaw's campus size
   is well within this range today.
-- The `filter[campus_id]` + `filter[cursus_id]` combination used against `cursus_users` and
-  `projects_users` is a pattern observed in community 42 dashboards, **not** something the
-  official API documentation exhaustively guarantees for every endpoint/field combination. If
-  a future 42 API change stops honoring one of these filters, the dataset returned could be
-  wrong (too broad or empty) without an explicit error - this is the single riskiest
-  assumption in the integration and is called out again in `docs/API_RESEARCH.md`.
+- **Filter attribute names are not consistent across endpoints, and this bit us during
+  development.** `cursus_users` accepts `filter[campus_id]`/`filter[cursus_id]`, but
+  `projects_users` rejects those outright with a `400 Filter Error` - it requires the
+  un-suffixed `filter[campus]`/`filter[cursus]` instead. This was masked for the entire
+  MOCK_MODE era of this project (mock mode never called the live API at all) and only
+  surfaced once mock mode was removed and every dashboard endpoint started failing against
+  real credentials. Fixed in `server/src/services/dataService.ts`
+  (`loadLiveCoreDataset`), verified against live data before and after. This is the single
+  riskiest assumption in the integration - filter names are **not** something the official
+  API documentation exhaustively guarantees per endpoint, and a future 42 API change could
+  silently reintroduce a similar failure (see `docs/API_RESEARCH.md` for the full detail and
+  the general lesson: a `200 OK` with plausible-looking data is not proof a filter worked
+  either - see the coalitions entry below).
 - Retry/backoff is bounded (3 attempts, capped exponential backoff) - a sustained 42 API
   outage or rate-limit period longer than that will surface as a "stale data" state on the
   dashboard rather than retrying indefinitely.
@@ -84,18 +91,39 @@ it's listed here.
   populated via a best-effort call to `GET /v2/campus/:id/locations?filter[active]=true`. If
   the configured 42 API application doesn't have that scope, or the endpoint is temporarily
   unavailable, this degrades silently to an empty "no live sessions" state - it never fails
-  the rest of the dashboard. In `MOCK_MODE=true`, live sessions are simulated instead.
+  the rest of the dashboard.
 - **Black hole dates come straight from `cursus_users.blackholed_at`.** This field's exact
   semantics (e.g. whether it's cleared on a break/extension) aren't exhaustively documented
   publicly; a non-null future date is treated at face value as "days remaining."
 
-## Mock mode fidelity
+## Coalition leaderboard and live evaluations
 
-- `MOCK_MODE=true` generates a deterministic, seeded dataset (24 synthetic students + the
-  featured login) so the UI has realistic variety without needing credentials. It is
-  representative of the *shape* of real data, not a live snapshot - level distributions,
-  project names, and mark distributions are illustrative, not statistically matched to the
-  real Warsaw cohort.
+- **Coalitions come from `GET /v2/blocs?filter[campus_id]=`, not `/v2/coalitions?filter[campus_id]=`.**
+  The latter returns `HTTP 200` with coalitions from every campus - the filter is silently
+  ignored rather than erroring, which is easy to miss if you only check the status code. This
+  was caught by noticing the returned coalition names didn't match Warsaw. `blocs` is
+  genuinely campus/cursus-scoped and embeds exactly that campus's coalitions, each already
+  carrying `score` - no separate aggregate call needed.
+- **`scale_teams`'s `filter[campus_id]` scoping is not verified to the same standard as the
+  other filters above.** It returns `HTTP 200` with plausible-looking data for
+  `filter[campus_id]=67`, but - unlike `cursus_users`/`projects_users`/`blocs` - this was not
+  cross-checked against a known Warsaw login before shipping (later verification calls were
+  intentionally held back to avoid compounding the rate-limit pressure from the day's
+  testing). Given `coalitions` turned out to silently ignore an identical-looking filter, this
+  should be treated as unconfirmed rather than assumed correct until someone checks a
+  `correcteds[].login` from a live response against a known Warsaw roster.
+- **Evaluation `comment`/`feedback` text is never fetched, by design.** A live `scale_teams`
+  record inspected during development carries free-text peer-review commentary written by
+  the corrector about the corrected student - not the kind of "already publicly visible on a
+  profile" data this dashboard otherwise limits itself to. The raw type
+  (`RawScaleTeam` in `server/src/models/types.ts`) simply doesn't declare those fields, so
+  there's no code path that could surface them, intentionally or by mistake. Only structured,
+  low-sensitivity fields are shown: corrected student, project (best-effort), pass/fail
+  `flag`, and `final_mark`.
+- **Evaluation `projectName` resolution is best-effort.** `scale_teams` doesn't return a
+  clean top-level project name the way `projects_users` does; it may come back `null` if the
+  record's nested `team`/scale data doesn't resolve cleanly. The UI shows "Evaluation" as a
+  fallback label in that case rather than guessing.
 
 ## Production security recommendations
 

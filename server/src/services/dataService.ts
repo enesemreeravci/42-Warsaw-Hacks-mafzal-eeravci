@@ -1,16 +1,21 @@
 import type { AppConfig } from '../config/env.js';
 import type { Logger } from '../config/logger.js';
-import { generateMockDataset } from '../mock/mockData.js';
 import type {
+  CoalitionStanding,
+  EvaluationEntry,
   ProjectCompletion,
+  RawBloc,
   RawCursusUser,
   RawLocation,
   RawProject,
   RawProjectUser,
+  RawScaleTeam,
   StudentDetail,
   StudentSummary,
 } from '../models/types.js';
 import { TtlCache } from '../utils/cache.js';
+import { buildCoalitionStandings } from './coalitions.js';
+import { buildRecentEvaluations } from './evaluations.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
 import type { Ft42ApiClient } from './ft42ApiClient.js';
@@ -36,50 +41,32 @@ export interface ProjectListing {
 const CORE_DATA_KEY = 'core-dataset';
 const DISCOVERY_KEY = 'discovery';
 const PROJECTS_KEY = 'projects';
+const COALITIONS_KEY = 'coalitions';
+const SCALE_TEAMS_KEY = 'scale-teams';
+const SCALE_TEAMS_PAGE_SIZE = 50;
 
 /**
- * Orchestrates live-vs-mock data loading, discovery, and caching. Every
+ * Orchestrates live data loading, discovery, and caching against the 42 API. Every
  * route reads through this service so raw API shapes never leak past it.
  */
 export class DataService {
   private readonly cache: TtlCache<unknown>;
-  private readonly mockDataset: ReturnType<typeof generateMockDataset> | null;
 
   constructor(
-    private readonly config: Pick<AppConfig, 'mockMode' | 'featuredLogin' | 'cacheTtlSeconds' | 'requestConcurrency'>,
-    private readonly apiClient: Ft42ApiClient | null,
-    private readonly discoveryService: DiscoveryService | null,
+    config: Pick<AppConfig, 'cacheTtlSeconds'>,
+    private readonly apiClient: Ft42ApiClient,
+    private readonly discoveryService: DiscoveryService,
     private readonly logger: Logger,
   ) {
     this.cache = new TtlCache(config.cacheTtlSeconds * 1000);
-    this.mockDataset = config.mockMode ? generateMockDataset(config.featuredLogin) : null;
-  }
-
-  isMockMode(): boolean {
-    return this.config.mockMode;
   }
 
   async getDiscoveredConfig(): Promise<DiscoveredConfig> {
-    if (this.config.mockMode) {
-      return { campusId: 0, campusName: 'Warsaw (demo)', cursusId: 0, cursusName: '42cursus (demo)' };
-    }
-    const result = await this.cache.getOrLoad(DISCOVERY_KEY, () => this.discoveryService!.discoverAll());
+    const result = await this.cache.getOrLoad(DISCOVERY_KEY, () => this.discoveryService.discoverAll());
     return result.value as DiscoveredConfig;
   }
 
   async getCoreDataset(): Promise<{ data: CoreDataset; cacheStatus: 'fresh' | 'cached' | 'stale' }> {
-    if (this.config.mockMode) {
-      return {
-        data: {
-          students: this.mockDataset!.students,
-          completions: this.mockDataset!.completions,
-          discovered: { campusId: 0, campusName: 'Warsaw (demo)', cursusId: 0, cursusName: '42cursus (demo)' },
-          currentProjectsByStudent: this.mockDataset!.currentProjectsByStudent,
-        },
-        cacheStatus: 'fresh',
-      };
-    }
-
     const cachedBefore = this.cache.get(CORE_DATA_KEY);
     const result = await this.cache.getOrLoad(CORE_DATA_KEY, () => this.loadLiveCoreDataset());
     const cacheStatus = result.status === 'stale' ? 'stale' : cachedBefore ? 'cached' : 'fresh';
@@ -87,13 +74,9 @@ export class DataService {
   }
 
   async getProjects(): Promise<ProjectListing[]> {
-    if (this.config.mockMode) {
-      return this.mockDataset!.projectNames.map((name, idx) => ({ id: idx + 1, name }));
-    }
-
     const result = await this.cache.getOrLoad(PROJECTS_KEY, async () => {
       const discovered = await this.getDiscoveredConfig();
-      const raw = await this.apiClient!.paginate<RawProject>(
+      const raw = await this.apiClient.paginate<RawProject>(
         `/v2/cursus/${discovered.cursusId}/projects`,
         {},
         { pageSize: 100, maxPages: 20 },
@@ -120,13 +103,46 @@ export class DataService {
     };
   }
 
+  async getCoalitions(): Promise<CoalitionStanding[]> {
+    const result = await this.cache.getOrLoad(COALITIONS_KEY, async () => {
+      const discovered = await this.getDiscoveredConfig();
+      // `/v2/coalitions?filter[campus_id]=` silently ignores the filter and returns every
+      // campus's coalitions. `/v2/blocs` is genuinely scoped per campus/cursus and embeds
+      // exactly that campus's coalitions - verified live against Warsaw, see docs/API_RESEARCH.md.
+      const blocs = await this.apiClient.paginate<RawBloc>(
+        '/v2/blocs',
+        { 'filter[campus_id]': discovered.campusId, 'filter[cursus_id]': discovered.cursusId },
+        { pageSize: 100, maxPages: 5 },
+      );
+      const raw = blocs.flatMap((bloc) => bloc.coalitions ?? []);
+      return buildCoalitionStandings(raw);
+    });
+    return result.value as CoalitionStanding[];
+  }
+
+  async getRecentEvaluations(limit: number): Promise<EvaluationEntry[]> {
+    const { data } = await this.getCoreDataset();
+    const studentsByLogin = new Map(data.students.map((s) => [s.login.toLowerCase(), s]));
+
+    const result = await this.cache.getOrLoad(SCALE_TEAMS_KEY, async () => {
+      const discovered = await this.getDiscoveredConfig();
+      return this.apiClient.paginate<RawScaleTeam>(
+        '/v2/scale_teams',
+        { 'filter[campus_id]': discovered.campusId, sort: '-filled_at' },
+        { pageSize: SCALE_TEAMS_PAGE_SIZE, maxPages: 1 },
+      );
+    });
+
+    return buildRecentEvaluations(result.value as RawScaleTeam[], studentsByLogin, limit);
+  }
+
   invalidateAll(): void {
     this.cache.invalidateAll();
   }
 
   private async loadLiveCoreDataset(): Promise<CoreDataset> {
     const discovered = await this.getDiscoveredConfig();
-    const apiClient = this.apiClient!;
+    const apiClient = this.apiClient;
 
     const [cursusUsers, projectUsers, activeSinceByUser] = await Promise.all([
       apiClient.paginate<RawCursusUser>(
@@ -134,9 +150,12 @@ export class DataService {
         { 'filter[campus_id]': discovered.campusId, 'filter[cursus_id]': discovered.cursusId },
         { pageSize: 100, maxPages: 50 },
       ),
+      // /v2/projects_users does not accept campus_id/cursus_id filters (confirmed live: the
+      // API returns a 400 "Filter Error" naming its actual filterable attributes) - it wants
+      // the un-suffixed campus/cursus instead. Verified against real data before this fix.
       apiClient.paginate<RawProjectUser>(
         '/v2/projects_users',
-        { 'filter[campus_id]': discovered.campusId, 'filter[cursus_id]': discovered.cursusId },
+        { 'filter[campus]': discovered.campusId, 'filter[cursus]': discovered.cursusId },
         { pageSize: 100, maxPages: 100 },
       ),
       this.loadActiveSessionsByUser(apiClient, discovered.campusId),
@@ -201,6 +220,9 @@ export class DataService {
         if (!existing || new Date(location.begin_at) < new Date(existing)) {
           byUser.set(location.user.id, location.begin_at);
         }
+      }
+      if (byUser.size === 0) {
+        this.logger.info('Live API connected: 0 active users currently on campus');
       }
       return byUser;
     } catch (error) {
