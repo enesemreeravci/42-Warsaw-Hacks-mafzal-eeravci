@@ -5,6 +5,7 @@ import type {
   EvaluationEntry,
   ProjectCompletion,
   RawBloc,
+  RawCoalitionUser,
   RawCursusUser,
   RawLocation,
   RawProject,
@@ -14,7 +15,7 @@ import type {
   StudentSummary,
 } from '../models/types.js';
 import { TtlCache, type CacheGetResult } from '../utils/cache.js';
-import { buildCoalitionStandings } from './coalitions.js';
+import { buildCoalitionStandings, buildTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
@@ -201,6 +202,23 @@ export class DataService {
     };
   }
 
+  /**
+   * Cache-only counterpart to getHistoricalCoreDataset() for the paginated student list.
+   * Prefers the historical (accurate, unbounded) dataset; falls back to the fast/recent-window
+   * one if historical isn't cached yet, in which case `partialHistory` tells the caller
+   * completed-project counts only cover the recent window. `status: 'warming'` means nothing at
+   * all has been cached yet. Mirrors getStudentDetailSnapshot() - see there for the same pattern.
+   */
+  getStudentsListSnapshot():
+    | { status: 'warming' }
+    | { status: 'ready'; data: CoreDataset; cacheStatus: CacheStatus; partialHistory: boolean } {
+    const historical = this.getHistoricalCoreDatasetSnapshot();
+    const snapshot = historical ?? this.getCoreDatasetSnapshot();
+    if (!snapshot) return { status: 'warming' };
+
+    return { status: 'ready', data: snapshot.data, cacheStatus: snapshot.cacheStatus, partialHistory: historical === null };
+  }
+
   private readCoreSnapshot(projectUsersKey: string): { data: CoreDataset; cacheStatus: CacheStatus } | null {
     const discovered = this.cache.get(DISCOVERY_KEY) as CacheGetResult<DiscoveredConfig> | undefined;
     const roster = this.cache.get(ROSTER_KEY) as
@@ -227,9 +245,42 @@ export class DataService {
         { pageSize: 100, maxPages: 5 },
       );
       const raw = blocs.flatMap((bloc) => bloc.coalitions ?? []);
-      return buildCoalitionStandings(raw);
+
+      // Reuses getCoreDataset()'s own cache - this only triggers a live fetch on the rare tick
+      // where both entries expire at once, not on every getCoalitions() call.
+      const { data } = await this.getCoreDataset();
+      const studentsById = new Map(data.students.map((s) => [s.id, s]));
+      const coalitionUsers = await this.loadCoalitionUsersForRoster(data.students.map((s) => s.id));
+      const topContributors = buildTopContributors(coalitionUsers, studentsById);
+
+      return buildCoalitionStandings(raw, topContributors);
     });
     return result.value as CoalitionStanding[];
+  }
+
+  /**
+   * `/v2/coalitions_users` has no campus filter and coalitions are shared network-wide, so
+   * `filter[coalition_id]=X` alone can return members from other campuses (confirmed live: a
+   * sample under a Warsaw coalition_id included a rank-2 global score far above anything this
+   * cursus/campus size would produce). `filter[user_id]` with a comma-separated list, scoped to
+   * exactly this campus's own roster, is what's used instead - confirmed live to return only
+   * the requested IDs. Batched at 100 IDs/request to stay well under typical query-string
+   * length limits.
+   */
+  private async loadCoalitionUsersForRoster(userIds: number[]): Promise<RawCoalitionUser[]> {
+    const CHUNK_SIZE = 100;
+    const results: RawCoalitionUser[] = [];
+
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+      const items = await this.apiClient.get<RawCoalitionUser[]>('/v2/coalitions_users', {
+        'filter[user_id]': chunk.join(','),
+        'page[size]': CHUNK_SIZE,
+      });
+      if (Array.isArray(items)) results.push(...items);
+    }
+
+    return results;
   }
 
   async getRecentEvaluations(limit: number): Promise<EvaluationEntry[]> {

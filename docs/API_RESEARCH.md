@@ -85,6 +85,7 @@ any login and requires no user session.
 | Individual profile | `GET /v2/users/:login` | Used only as a status probe target (`/v2/campus?page[size]=1` in practice) and documented here for completeness |
 | Active campus locations (bulk) | `GET /v2/campus/:id/locations?filter[active]=true` | Powers "The Hive" live node map (`ActiveSessionEntry.activeSince`); fetched best-effort - a missing scope, 403, or transient failure is caught and logged, and the dataset falls back to an empty active-sessions list rather than failing the dashboard |
 | Coalitions (bulk) | `GET /v2/blocs?filter[campus_id]=&filter[cursus_id]=` | Powers the Coalition Leaderboard. **Not** `/v2/coalitions?filter[campus_id]=` - see below. Each bloc embeds its campus's coalitions, each with `score` present directly (verified live: Warsaw's bloc has 3 coalitions) |
+| Per-student coalition scores (bulk) | `GET /v2/coalitions_users?filter[user_id]=<comma-list>` | Powers each coalition card's "Top Contributor". **Not** `filter[coalition_id]=` - see below. Batched at 100 roster user IDs per request |
 | Peer evaluations (bulk) | `GET /v2/scale_teams?filter[campus_id]=&sort=-filled_at` | Powers Live Evaluations; only `final_mark`, `flag`, `filled_at`, `corrector`/`correcteds` logins, and a best-effort project name are read - `comment`/`feedback` are never fetched, see below |
 
 **A note on campus/bloc IDs, and on trusting filters that return 200 OK**: an earlier
@@ -101,6 +102,20 @@ returned data actually looked like Warsaw (it didn't: the top results were Lausa
 coalitions). Recorded here as a caution against trusting campus/bloc/cursus IDs, or filters
 that return success, from any source - including pasted specs - without checking the
 resulting data against something already known to be true.
+
+**A similar trap in `/v2/coalitions_users`, caught the same way.** Coalitions are shared
+network-wide, not exclusive to one campus, so `GET /v2/coalitions_users?filter[coalition_id]=459`
+(Warsaw's Lunaria) returns HTTP 200 with plausible-looking records - but nothing in the
+response says which campus each `user_id` belongs to, and a spot-check turned up a `rank: 2`
+entry with a global score far above what this cursus/campus size would produce, which is only
+explicable if members from other campuses sharing that coalition are mixed into the results.
+`filter[user_id]=<comma-separated list>`, passed as this campus's own already-loaded roster
+IDs, is what's actually used instead - confirmed live to return exactly (and only) the
+requested IDs. Also worth noting: `sort=-score` on this endpoint returns a 400 (`"the score
+field is not sortable"`), so the top contributor per coalition is computed client-side
+(`buildTopContributors` in `server/src/services/coalitions.ts`) after the roster-scoped fetch,
+not via the API's own sort/rank field (`rank` on this endpoint is also global, not
+campus-relative).
 
 This project deliberately uses the **bulk, filterable** endpoints (`cursus_users`,
 `projects_users`, `blocs`, `scale_teams`) rather than iterating `GET /v2/campus/:id/users`

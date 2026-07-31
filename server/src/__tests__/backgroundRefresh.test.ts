@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLogger } from '../config/logger.js';
 import { BackgroundRefreshService } from '../services/backgroundRefresh.js';
 import type { DataService } from '../services/dataService.js';
+import type { StatusService } from '../services/statusService.js';
 
 const silentLogger = createLogger({ logLevel: 'silent' });
 
@@ -15,10 +16,22 @@ function fakeDataService(overrides: Partial<Record<'getCoreDataset' | 'getCoalit
   } as unknown as DataService;
 }
 
+function fakeStatusService() {
+  return {
+    refresh: vi.fn().mockResolvedValue({
+      reachable: true,
+      responseTimeMs: 1,
+      authenticated: true,
+      lastSuccessfulRequestAt: new Date().toISOString(),
+      lastErrorSummary: null,
+    }),
+  } as unknown as StatusService;
+}
+
 describe('BackgroundRefreshService', () => {
   it('warmup() runs one core cycle and one historical cycle and records success', async () => {
     const dataService = fakeDataService();
-    const service = new BackgroundRefreshService(dataService, silentLogger);
+    const service = new BackgroundRefreshService(dataService, fakeStatusService(), silentLogger);
 
     await service.warmup();
 
@@ -38,7 +51,7 @@ describe('BackgroundRefreshService', () => {
     const dataService = fakeDataService({
       getCoreDataset: vi.fn().mockRejectedValue(new Error('42 API unreachable')),
     });
-    const service = new BackgroundRefreshService(dataService, silentLogger);
+    const service = new BackgroundRefreshService(dataService, fakeStatusService(), silentLogger);
 
     await expect(service.warmup()).resolves.toBeUndefined();
 
@@ -52,7 +65,7 @@ describe('BackgroundRefreshService', () => {
     const dataService = fakeDataService({
       getHistoricalCoreDataset: vi.fn().mockRejectedValue(new Error('too many pages')),
     });
-    const service = new BackgroundRefreshService(dataService, silentLogger);
+    const service = new BackgroundRefreshService(dataService, fakeStatusService(), silentLogger);
 
     await service.warmup();
 
@@ -66,7 +79,7 @@ describe('BackgroundRefreshService', () => {
     vi.useFakeTimers();
     try {
       const dataService = fakeDataService();
-      const service = new BackgroundRefreshService(dataService, silentLogger);
+      const service = new BackgroundRefreshService(dataService, fakeStatusService(), silentLogger);
 
       await service.warmup();
       service.start();

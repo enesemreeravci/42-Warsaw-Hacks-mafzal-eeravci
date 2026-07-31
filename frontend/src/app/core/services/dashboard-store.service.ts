@@ -11,7 +11,6 @@ import type {
   LivePulseResponse,
   ProjectCompletion,
   ProjectMetric,
-  StudentDetail,
   StudentRanking,
 } from '../models/api.models';
 import type { NormalizedApiError } from '../interceptors/error.interceptor';
@@ -29,7 +28,6 @@ export interface DashboardData {
   topProjects: ProjectMetric[];
   topStudentsByLevel: StudentRanking[];
   topStudentsByCompletedProjects: StudentRanking[];
-  featuredStudent: StudentDetail | null;
   livePulse: LivePulseResponse | null;
   coalitions: CoalitionStanding[];
   evaluations: EvaluationEntry[];
@@ -53,7 +51,6 @@ export class DashboardStore {
     topProjects: [],
     topStudentsByLevel: [],
     topStudentsByCompletedProjects: [],
-    featuredStudent: null,
     livePulse: null,
     coalitions: [],
     evaluations: [],
@@ -227,9 +224,8 @@ export class DashboardStore {
     }
 
     const days = this.selectedPeriodDaysSignal();
-    const featuredLogin = this.configSignal()?.featuredLogin ?? 'mafzal';
 
-    let remaining = 10;
+    let remaining = 9;
     let anySucceeded = false;
 
     const onSettled = (succeeded: boolean): void => {
@@ -277,10 +273,6 @@ export class DashboardStore {
       (data, envelope) => ({ ...data, topStudentsByCompletedProjects: envelope.data }),
       onSettled,
     );
-    this.loadField(loadId, 'featuredStudent', this.api.getStudentDetail(featuredLogin), (data, envelope) => ({
-      ...data,
-      featuredStudent: envelope.data,
-    }), onSettled);
     this.loadField(loadId, 'livePulse', this.api.getLivePulse(), (data, envelope) => ({ ...data, livePulse: envelope.data }), onSettled);
     this.loadField(loadId, 'coalitions', this.api.getCoalitions(), (data, envelope) => ({
       ...data,

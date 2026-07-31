@@ -84,7 +84,8 @@ beforeAll(async () => {
   } as unknown as TokenManager;
 
   const dataService = new DataService(config, fakeApiClient, fakeDiscoveryService, logger);
-  const backgroundRefresh = new BackgroundRefreshService(dataService, logger);
+  const statusService = new StatusService(fakeApiClient, fakeTokenManager, logger);
+  const backgroundRefresh = new BackgroundRefreshService(dataService, statusService, logger);
 
   const ctx: AppContext = {
     config,
@@ -93,7 +94,7 @@ beforeAll(async () => {
     apiClient: fakeApiClient,
     discoveryService: fakeDiscoveryService,
     dataService,
-    statusService: new StatusService(fakeApiClient, fakeTokenManager, logger),
+    statusService,
     backgroundRefresh,
     startedAt: new Date(),
     refreshInProgress: false,

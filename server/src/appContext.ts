@@ -32,7 +32,7 @@ export function createAppContext(config: AppConfig, logger: Logger): AppContext 
   const discoveryService = new DiscoveryService(config, apiClient, logger);
   const dataService = new DataService(config, apiClient, discoveryService, logger);
   const statusService = new StatusService(apiClient, tokenManager, logger);
-  const backgroundRefresh = new BackgroundRefreshService(dataService, logger);
+  const backgroundRefresh = new BackgroundRefreshService(dataService, statusService, logger);
 
   return {
     config,

@@ -135,6 +135,15 @@ export interface LivePulse {
   achievements: AchievementEntry[];
 }
 
+/** The campus's single highest-scoring member of a given coalition. */
+export interface CoalitionTopContributor {
+  id: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  score: number;
+}
+
 /** A coalition's standing on the campus leaderboard. */
 export interface CoalitionStanding {
   id: number;
@@ -144,6 +153,8 @@ export interface CoalitionStanding {
   color: string | null;
   score: number;
   rank: number;
+  /** Null if no campus roster member could be matched against this coalition's membership. */
+  topContributor: CoalitionTopContributor | null;
 }
 
 /**
@@ -251,6 +262,24 @@ export interface RawBloc {
   campus_id: number;
   cursus_id: number;
   coalitions: RawCoalition[];
+  [key: string]: unknown;
+}
+
+/**
+ * A `/v2/coalitions_users` record - a student's per-coalition score. This endpoint has no
+ * campus filter and no sortable `score` field (`sort=-score` returns a 400 "Sort Error" -
+ * verified live), and coalitions are shared network-wide, not campus-exclusive, so querying by
+ * `filter[coalition_id]` alone can return members from other campuses. `filter[user_id]`
+ * (comma-separated) is what's actually used here instead, scoped to this campus's own roster -
+ * confirmed live to return exactly the requested user IDs, nothing else.
+ */
+export interface RawCoalitionUser {
+  id: number;
+  coalition_id: number;
+  user_id: number;
+  /** Can be negative (penalties observed live). */
+  score: number;
+  rank?: number;
   [key: string]: unknown;
 }
 

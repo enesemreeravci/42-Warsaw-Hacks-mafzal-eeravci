@@ -1,5 +1,4 @@
-import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonToggleModule, MatButtonToggleChange } from '@angular/material/button-toggle';
 import { filter, timer } from 'rxjs';
@@ -13,38 +12,66 @@ import { AchievementSpotlightComponent } from './components/achievement-spotligh
 import { AssistantWidgetComponent } from './components/assistant-widget.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
 import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
-import { CommunityProgressComponent } from './components/community-progress.component';
+import { CommunitySplitChartComponent } from './components/community-split-chart.component';
 import { CompletionTrendChartComponent } from './components/completion-trend-chart.component';
-import { FeaturedStudentCardComponent } from './components/featured-student-card.component';
 import { HiveNodeMapComponent } from './components/hive-node-map.component';
 import { LiveEvaluationsComponent } from './components/live-evaluations.component';
-import { Mascot3dComponent } from './components/mascot-3d.component';
-import { SystemStatusComponent } from './components/system-status.component';
+import { NarratorRobotComponent, type NarratorCue } from './components/narrator-robot.component';
+import { NarratorTargetDirective } from './narrator-target.directive';
+import { NarratorTargetRegistry } from './narrator-target-registry.service';
+import { RobotAchievementShowcaseComponent } from './components/robot-achievement-showcase.component';
 import { TopProjectsListComponent } from './components/top-projects-list.component';
+import { TopStudentsByCompletedComponent } from './components/top-students-by-completed.component';
+import { TopStudentsByLevelComponent } from './components/top-students-by-level.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
+
+const NARRATOR_ROTATION_MS = 6500;
+
+/** Cues for the main (non-TV) dashboard, in the order the narrator cycles through them. Each
+ * `id` is matched against an `appNarratorTarget` directive on the corresponding panel in
+ * dashboard.page.html - that's how the narrator finds its target's real screen position. */
+const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
+  { id: 'summary', color: '#34e2c4', text: "Here's Warsaw's Common Core community at a glance." },
+  { id: 'celebration', color: '#ffb020', text: 'Freshly validated completions show up here first.' },
+  { id: 'trend', color: '#16f0a6', text: 'Validation activity over time - switch the range above to zoom.' },
+  { id: 'projects', color: '#be2ad1', text: 'The most-completed projects across the whole cursus.' },
+  { id: 'level', color: '#52bdff', text: 'Top students ranked by level.' },
+  { id: 'completed', color: '#38e19a', text: 'Top students ranked by validated projects.' },
+];
+
+/** Cues for TV mode, one per rotating section (index-matched to `TvModeService.activeSection()`). */
+const TV_NARRATOR_CUES: NarratorCue[] = [
+  { id: 'hive', color: '#4cc9f0', text: "The Hive - who's on campus right now, live." },
+  { id: 'spotlight', color: '#ffb020', text: 'Celebrating a recent stand-out achievement.' },
+  { id: 'race', color: '#16f0a6', text: "This week's XP race, and who's closest to a black hole." },
+  { id: 'coalitions', color: '#be2ad1', text: "Coalition standings and each team's top contributor." },
+  { id: 'evaluations', color: '#4cc9f0', text: 'Freshly filled peer evaluations.' },
+  { id: 'showcase', color: '#34e2c4', text: "A closer look at today's top achievements." },
+];
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
   imports: [
-    DatePipe,
     MatButtonToggleModule,
     ErrorStateComponent,
     LoadingSkeletonComponent,
     StatCardComponent,
-    Mascot3dComponent,
     AssistantWidgetComponent,
     CelebrationCarouselComponent,
-    CommunityProgressComponent,
     CompletionTrendChartComponent,
-    FeaturedStudentCardComponent,
-    SystemStatusComponent,
     TopProjectsListComponent,
+    TopStudentsByLevelComponent,
+    TopStudentsByCompletedComponent,
     HiveNodeMapComponent,
     AchievementSpotlightComponent,
     XpRaceBlackholeComponent,
     CoalitionLeaderboardComponent,
     LiveEvaluationsComponent,
+    RobotAchievementShowcaseComponent,
+    CommunitySplitChartComponent,
+    NarratorRobotComponent,
+    NarratorTargetDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dashboard.page.html',
@@ -55,12 +82,38 @@ export class DashboardPage {
   protected readonly tvMode = inject(TvModeService);
   private readonly visibility = inject(VisibilityService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly targetRegistry = inject(NarratorTargetRegistry);
 
   protected readonly periodOptions = [7, 14, 30, 60, 90];
 
   protected readonly partialErrorEntries = computed(() =>
     Object.entries(this.store.partialErrors()).map(([field, message]) => ({ field, message })),
   );
+
+  private readonly narratorIndex = signal(0);
+
+  /** The cue the narrator robot is currently showing. A panel the user is hovering (registered
+   * via `appNarratorTarget`, see NarratorTargetRegistry) takes priority over the automatic
+   * rotation; otherwise it's synced to the active TV section in TV mode, or auto-rotates on its
+   * own timer on the main dashboard. */
+  protected readonly activeNarratorCue = computed<NarratorCue | null>(() => {
+    const cues = this.tvMode.enabled() ? TV_NARRATOR_CUES : DASHBOARD_NARRATOR_CUES;
+
+    const focusedId = this.targetRegistry.focusedId();
+    if (focusedId) {
+      const focused = cues.find((c) => c.id === focusedId);
+      if (focused) return focused;
+    }
+
+    if (this.tvMode.enabled()) {
+      return TV_NARRATOR_CUES[this.tvMode.activeSection()] ?? null;
+    }
+    return DASHBOARD_NARRATOR_CUES[this.narratorIndex() % DASHBOARD_NARRATOR_CUES.length] ?? null;
+  });
+
+  /** TV mode has one full-bleed section active at a time, so its narrator target is always the
+   * same wrapper element - only the id it's registered under changes as sections rotate. */
+  protected readonly tvNarratorTargetId = computed(() => TV_NARRATOR_CUES[this.tvMode.activeSection()]?.id ?? '');
 
   constructor() {
     timer(0, 1000)
@@ -69,6 +122,13 @@ export class DashboardPage {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.tickRotation());
+
+    timer(NARRATOR_ROTATION_MS, NARRATOR_ROTATION_MS)
+      .pipe(
+        filter(() => !this.tvMode.enabled() && !this.visibility.hidden()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.narratorIndex.update((i) => i + 1));
   }
 
   private secondsInSection = 0;

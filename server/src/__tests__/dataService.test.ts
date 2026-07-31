@@ -3,6 +3,7 @@ import { createLogger } from '../config/logger.js';
 import { DataService } from '../services/dataService.js';
 import type { DiscoveryService } from '../services/discoveryService.js';
 import type { Ft42ApiClient } from '../services/ft42ApiClient.js';
+import type { RawCursusUser } from '../models/types.js';
 
 const silentLogger = createLogger({ logLevel: 'silent' });
 
@@ -17,14 +18,27 @@ interface RecordedCall {
   params: Record<string, unknown>;
 }
 
-function fakeApiClient(calls: RecordedCall[]): Ft42ApiClient {
+function fakeApiClient(
+  calls: RecordedCall[],
+  options: {
+    paginateImpl?: (path: string, params: Record<string, unknown>) => unknown;
+    getImpl?: (path: string, params?: Record<string, unknown>) => unknown;
+  } = {},
+): Ft42ApiClient {
   return {
     paginate: vi.fn().mockImplementation(async (path: string, params: Record<string, unknown>) => {
       calls.push({ path, params });
-      return [];
+      return options.paginateImpl ? options.paginateImpl(path, params) : [];
     }),
-    get: vi.fn().mockResolvedValue([]),
+    get: vi.fn().mockImplementation(async (path: string, params: Record<string, unknown> = {}) => {
+      calls.push({ path, params });
+      return options.getImpl ? options.getImpl(path, params) : [];
+    }),
   } as unknown as Ft42ApiClient;
+}
+
+function cursusUserFixture(id: number): RawCursusUser {
+  return { id, level: 1, end_at: null, blackholed_at: null, user: { id, login: `student${id}`, displayname: `Student ${id}` } };
 }
 
 describe('DataService fast/historical dataset split', () => {
@@ -112,5 +126,52 @@ describe('DataService cache-only snapshots (never trigger a live 42 API call)', 
 
     await service.getHistoricalCoreDataset();
     expect(service.getStudentDetailSnapshot('nobody')).toMatchObject({ status: 'ready', partialHistory: false, detail: null });
+  });
+});
+
+describe('DataService coalitions top-contributor lookup', () => {
+  it('batches /v2/coalitions_users requests in chunks of 100, scoped by filter[user_id] to the campus roster', async () => {
+    const calls: RecordedCall[] = [];
+    const cursusUsers = Array.from({ length: 250 }, (_, i) => cursusUserFixture(i + 1));
+
+    const apiClient = fakeApiClient(calls, {
+      paginateImpl: (path) => (path === '/v2/cursus_users' ? cursusUsers : []),
+    });
+    const service = new DataService({ cacheTtlSeconds: 300 }, apiClient, fakeDiscovery(), silentLogger);
+
+    await service.getCoalitions();
+
+    const coalitionUserCalls = calls.filter((c) => c.path === '/v2/coalitions_users');
+    expect(coalitionUserCalls).toHaveLength(3); // 250 students / 100 per chunk = 3 requests
+    expect(String(coalitionUserCalls[0]!.params['filter[user_id]']).split(',')).toHaveLength(100);
+    expect(String(coalitionUserCalls[2]!.params['filter[user_id]']).split(',')).toHaveLength(50); // remainder
+  });
+
+  it('attaches topContributor to matching coalitions, restricted to the campus roster', async () => {
+    const calls: RecordedCall[] = [];
+    const cursusUsers = [cursusUserFixture(1), cursusUserFixture(2)];
+    const blocs = [{ id: 1, campus_id: 67, cursus_id: 21, coalitions: [{ id: 459, name: 'Lunaria', slug: 'lunaria', score: 1000 }] }];
+
+    const apiClient = fakeApiClient(calls, {
+      paginateImpl: (path) => {
+        if (path === '/v2/cursus_users') return cursusUsers;
+        if (path === '/v2/blocs') return blocs;
+        return [];
+      },
+      getImpl: (path) => {
+        if (path === '/v2/coalitions_users') {
+          return [
+            { id: 1, coalition_id: 459, user_id: 1, score: 50 },
+            { id: 2, coalition_id: 459, user_id: 2, score: 500 },
+          ];
+        }
+        return [];
+      },
+    });
+    const service = new DataService({ cacheTtlSeconds: 300 }, apiClient, fakeDiscovery(), silentLogger);
+
+    const standings = await service.getCoalitions();
+
+    expect(standings[0]!.topContributor).toMatchObject({ login: 'student2', score: 500 });
   });
 });

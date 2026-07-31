@@ -1,5 +1,9 @@
 <div class="dashboard" [class.dashboard--tv]="tvMode.enabled()">
-  <app-assistant-widget />
+  <app-narrator-robot [cue]="activeNarratorCue()" [refreshing]="store.refreshing()" (refresh)="store.refreshNow()" />
+
+  @if (!tvMode.enabled()) {
+    <app-assistant-widget />
+  }
 
   @if (store.error() && !store.data().summary) {
     <app-error-state
@@ -22,7 +26,7 @@
 
     @if (partialErrorEntries().length > 0) {
       <div class="inline-banner" role="alert">
-        {{ partialErrorEntries().length }} of 10 dashboard sections failed to refresh and are showing older data:
+        {{ partialErrorEntries().length }} of 9 dashboard sections failed to refresh and are showing older data:
         @for (entry of partialErrorEntries(); track entry.field) {
           <span class="inline-banner__item">{{ entry.field }} ({{ entry.message }})</span>
         }
@@ -32,41 +36,43 @@
     @if (!tvMode.enabled()) {
       <section class="section" aria-labelledby="summary-heading">
         <h2 id="summary-heading" class="visually-hidden">Community summary</h2>
-        <div class="summary-grid">
+        <div
+          class="summary-grid"
+          [appNarratorTarget]="'summary'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'summary'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <app-stat-card label="Warsaw students" [value]="store.data().summary?.totalStudents ?? 0" />
           <app-stat-card label="Active Common Core students" [value]="store.data().summary?.activeStudents ?? 0" [accent]="true" />
           <app-stat-card label="Average level" [value]="(store.data().summary?.averageLevel ?? 0).toFixed(2)" />
           <app-stat-card label="Completed (7 days)" [value]="store.data().summary?.completionsLast7Days ?? 0" />
           <app-stat-card label="Completed (30 days)" [value]="store.data().summary?.completionsLast30Days ?? 0" />
-          <app-stat-card label="Last refresh" [value]="(store.lastSuccessfulUpdate() | date: 'HH:mm:ss') ?? '—'" />
-        </div>
-
-        <div class="section--split">
-          <div class="panel">
-            <h3>System status</h3>
-            <app-system-status
-              [cacheStatus]="store.data().summary?.cacheStatus ?? 'fresh'"
-              [ft42Status]="store.ft42Status()"
-              [autoRefreshEnabled]="store.autoRefreshEnabled()"
-              [countdownSeconds]="store.countdownSeconds()"
-            />
-          </div>
-
-          <div class="panel panel--guide">
-            <app-mascot-3d [refreshing]="store.refreshing()" (refresh)="store.refreshNow()" [heightPx]="240" />
-          </div>
+          <app-community-split-chart
+            [totalStudents]="store.data().summary?.totalStudents ?? 0"
+            [activeStudents]="store.data().summary?.activeStudents ?? 0"
+          />
         </div>
       </section>
 
       <section class="section" aria-labelledby="celebration-heading">
-        <div class="panel">
+        <div
+          class="panel"
+          [appNarratorTarget]="'celebration'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'celebration'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <h3 id="celebration-heading">Recently completed</h3>
           <app-celebration-carousel [completions]="store.data().recentCompletions" />
         </div>
       </section>
 
       <section class="section section--split" aria-labelledby="trend-heading">
-        <div class="panel">
+        <div
+          class="panel"
+          [appNarratorTarget]="'trend'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'trend'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <div class="panel__header">
             <h3 id="trend-heading">Completion trend</h3>
             <mat-button-toggle-group [value]="store.selectedPeriodDays()" (change)="onPeriodChange($event)" aria-label="Display period">
@@ -78,25 +84,44 @@
           <app-completion-trend-chart [points]="store.data().trend" />
         </div>
 
-        <div class="panel">
+        <div
+          class="panel"
+          [appNarratorTarget]="'projects'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'projects'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <h3>Most completed projects</h3>
           <app-top-projects-list [projects]="store.data().topProjects" />
         </div>
       </section>
 
-      <section class="section section--split" aria-labelledby="community-heading">
-        <div class="panel">
-          <h3 id="community-heading">Community progress</h3>
-          <app-community-progress [byLevel]="store.data().topStudentsByLevel" [byCompleted]="store.data().topStudentsByCompletedProjects" />
+      <section class="section section--split" aria-labelledby="level-heading">
+        <div
+          class="panel"
+          [appNarratorTarget]="'level'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'level'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
+          <h3 id="level-heading">Top by level</h3>
+          <app-top-students-by-level [students]="store.data().topStudentsByLevel" />
         </div>
 
-        <div class="panel">
-          <h3>Featured student</h3>
-          <app-featured-student-card [student]="store.data().featuredStudent" />
+        <div
+          class="panel"
+          [appNarratorTarget]="'completed'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'completed'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
+          <h3>Top by validated projects</h3>
+          <app-top-students-by-completed [students]="store.data().topStudentsByCompletedProjects" />
         </div>
       </section>
     } @else {
-      <div class="tv-stage">
+      <div
+        class="tv-stage narrator-highlight"
+        [appNarratorTarget]="tvNarratorTargetId()"
+        [style.--highlight-color]="activeNarratorCue()?.color"
+      >
         @switch (tvMode.activeSection()) {
           @case (0) {
             <app-hive-node-map [students]="store.data().livePulse?.activeNow ?? []" />
@@ -115,6 +140,9 @@
           }
           @case (4) {
             <app-live-evaluations [evaluations]="store.data().evaluations" />
+          }
+          @case (5) {
+            <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
           }
         }
       </div>

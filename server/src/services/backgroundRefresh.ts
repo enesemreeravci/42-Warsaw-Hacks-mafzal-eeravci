@@ -1,5 +1,6 @@
 import type { Logger } from '../config/logger.js';
 import type { DataService } from './dataService.js';
+import type { StatusService } from './statusService.js';
 
 // The "core" cycle covers everything the auto-loading dashboard reads: roster + recent
 // completions + coalitions + evaluations. All bounded/fast loaders, so this interval can be
@@ -10,6 +11,10 @@ const CORE_REFRESH_INTERVAL_MS = 45_000;
 // expensive enough that refreshing it this often would itself saturate the 42 API rate limit,
 // so it gets a much longer interval. Read by /students and /students/:login.
 const HISTORICAL_REFRESH_INTERVAL_MS = 6 * 60_000;
+// GET /api/status/42 used to run this probe live on every request; the frontend polls it every
+// 60s (see DashboardStore's STATUS_POLL_MS), so refreshing comfortably faster than that keeps
+// the cached snapshot always fresher than what any client would notice.
+const STATUS_REFRESH_INTERVAL_MS = 30_000;
 
 export interface BackgroundRefreshStatus {
   lastCoreSuccessAt: string | null;
@@ -29,8 +34,10 @@ export interface BackgroundRefreshStatus {
 export class BackgroundRefreshService {
   private coreTimer: ReturnType<typeof setInterval> | null = null;
   private historicalTimer: ReturnType<typeof setInterval> | null = null;
+  private statusTimer: ReturnType<typeof setInterval> | null = null;
   private coreCycleRunning = false;
   private historicalCycleRunning = false;
+  private statusCycleRunning = false;
 
   private lastCoreSuccessAt: string | null = null;
   private lastCoreError: string | null = null;
@@ -39,6 +46,7 @@ export class BackgroundRefreshService {
 
   constructor(
     private readonly dataService: DataService,
+    private readonly statusService: StatusService,
     private readonly logger: Logger,
   ) {}
 
@@ -46,7 +54,13 @@ export class BackgroundRefreshService {
    * itself: the 42 API's retry/backoff (which honors its own Retry-After header - seen live as
    * 129s after a 429) means this can legitimately take minutes even though it never rejects, and
    * blocking app.listen() on it would make the whole server unreachable for that window. Tests
-   * that use fixture data (instant, no real network) can safely await it directly instead. */
+   * that use fixture data (instant, no real network) can safely await it directly instead.
+   *
+   * Deliberately excludes the status probe: core+historical already saturate the shared rate
+   * limiter's request budget during this exact cold-start window (this is when 429-with-backoff
+   * is most likely to fire), and status is the lowest-priority of the three - getSnapshot()
+   * already degrades to a harmless placeholder, so it's fine for its first real value to arrive
+   * a little later via its own recurring timer instead of competing for a slot right now. */
   async warmup(): Promise<void> {
     await Promise.all([this.runCoreCycle(), this.runHistoricalCycle()]);
   }
@@ -55,13 +69,16 @@ export class BackgroundRefreshService {
   start(): void {
     this.coreTimer = setInterval(() => void this.runCoreCycle(), CORE_REFRESH_INTERVAL_MS);
     this.historicalTimer = setInterval(() => void this.runHistoricalCycle(), HISTORICAL_REFRESH_INTERVAL_MS);
+    this.statusTimer = setInterval(() => void this.runStatusCycle(), STATUS_REFRESH_INTERVAL_MS);
   }
 
   stop(): void {
     if (this.coreTimer) clearInterval(this.coreTimer);
     if (this.historicalTimer) clearInterval(this.historicalTimer);
+    if (this.statusTimer) clearInterval(this.statusTimer);
     this.coreTimer = null;
     this.historicalTimer = null;
+    this.statusTimer = null;
   }
 
   getStatus(): BackgroundRefreshStatus {
@@ -111,6 +128,19 @@ export class BackgroundRefreshService {
       );
     } finally {
       this.historicalCycleRunning = false;
+    }
+  }
+
+  /** Keeps StatusService's cached snapshot warm so GET /api/status/42 never awaits a live probe
+   * itself - see StatusService.getSnapshot()/refresh(). StatusService.refresh() never throws
+   * (it captures the failure into the snapshot instead), so this has no error path of its own. */
+  private async runStatusCycle(): Promise<void> {
+    if (this.statusCycleRunning) return;
+    this.statusCycleRunning = true;
+    try {
+      await this.statusService.refresh();
+    } finally {
+      this.statusCycleRunning = false;
     }
   }
 }

@@ -2,6 +2,32 @@
   <div class="visually-hidden" role="status" aria-live="polite">{{ announcement() }}</div>
 
   @if (!tvMode.enabled()) {
+    <aside
+      class="sidebar"
+      [class.sidebar--expanded]="sidebarExpanded()"
+      (mouseenter)="onSidebarEnter()"
+      (mouseleave)="onSidebarLeave()"
+    >
+      <nav class="sidebar__nav" aria-label="Primary">
+        <a class="sidebar__link" routerLink="/dashboard" routerLinkActive="active" matTooltip="Dashboard" matTooltipPosition="right">
+          <mat-icon>dashboard</mat-icon>
+          <span class="sidebar__label">Dashboard</span>
+        </a>
+        <a class="sidebar__link" routerLink="/students" routerLinkActive="active" matTooltip="Students" matTooltipPosition="right">
+          <mat-icon>groups</mat-icon>
+          <span class="sidebar__label">Students</span>
+        </a>
+        <a class="sidebar__link" routerLink="/projects" routerLinkActive="active" matTooltip="Projects" matTooltipPosition="right">
+          <mat-icon>folder_open</mat-icon>
+          <span class="sidebar__label">Projects</span>
+        </a>
+        <a class="sidebar__link" routerLink="/about" routerLinkActive="active" matTooltip="About" matTooltipPosition="right">
+          <mat-icon>info</mat-icon>
+          <span class="sidebar__label">About</span>
+        </a>
+      </nav>
+    </aside>
+
     <header class="app-header">
       <div class="app-header__brand">
         <img class="app-header__mark" src="icons/42-logo.png" alt="42 Warsaw logo" width="44" height="44" />
@@ -10,13 +36,6 @@
           <p class="app-header__subtitle"></p>
         </div>
       </div>
-
-      <nav class="app-header__nav" aria-label="Primary">
-        <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-        <a routerLink="/students" routerLinkActive="active">Students</a>
-        <a routerLink="/projects" routerLinkActive="active">Projects</a>
-        <a routerLink="/about" routerLinkActive="active">About</a>
-      </nav>
 
       <div class="app-header__status">
         @if (store.stale()) {
@@ -34,10 +53,6 @@
       </div>
 
       <div class="app-header__actions">
-        <span class="last-updated" matTooltip="Time of the last successful data refresh">
-          Updated {{ store.lastSuccessfulUpdate() | date: 'HH:mm:ss' }}
-        </span>
-
         <button
           mat-icon-button
           type="button"
@@ -88,7 +103,7 @@
     </div>
   }
 
-  <main class="app-content" [class.app-content--tv]="tvMode.enabled()">
+  <main class="app-content" [class.app-content--tv]="tvMode.enabled()" [class.app-content--with-sidebar]="!tvMode.enabled()">
     <router-outlet />
   </main>
 

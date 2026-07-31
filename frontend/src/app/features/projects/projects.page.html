@@ -15,6 +15,9 @@
   } @else if (sortedRows().length === 0) {
     <app-empty-state title="No projects found" />
   } @else {
+    @if (partialError()) {
+      <div class="inline-banner" role="alert">{{ partialError() }} Showing 0 for the affected column.</div>
+    }
     <div class="table-wrapper">
       <table class="projects-table">
         <thead>

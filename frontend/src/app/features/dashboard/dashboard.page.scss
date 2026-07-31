@@ -1,7 +1,21 @@
 .dashboard {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  isolation: isolate;
+}
+
+.dashboard::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(52, 226, 196, 0.14), transparent 42%),
+    radial-gradient(circle at 88% 18%, rgba(76, 201, 240, 0.12), transparent 40%),
+    radial-gradient(circle at 50% 92%, rgba(190, 42, 209, 0.1), transparent 45%);
+  pointer-events: none;
 }
 
 .dashboard--tv {
@@ -52,14 +66,26 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
 }
 
 .panel {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--glass-shadow);
+  transition: border-color 500ms ease, box-shadow 500ms ease;
+}
+
+/* Bound to the narrator robot's active cue - see dashboard.page.ts activeNarratorCue(). */
+.narrator-highlight {
+  border-color: var(--highlight-color, var(--color-accent));
+  box-shadow: 0 0 0 2px var(--highlight-color, var(--color-accent)), 0 0 32px -6px var(--highlight-color, var(--color-accent));
 }
 
 .panel h3 {
@@ -68,10 +94,6 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
-}
-
-.panel--guide {
-  padding: var(--space-2);
 }
 
 .panel__header {
@@ -89,6 +111,9 @@
   flex: 1;
   display: flex;
   min-height: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  transition: border-color 500ms ease, box-shadow 500ms ease;
 
   > * {
     flex: 1;

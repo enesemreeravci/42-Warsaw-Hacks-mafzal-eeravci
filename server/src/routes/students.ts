@@ -41,11 +41,20 @@ export function studentsRouter(ctx: AppContext): Router {
       const direction = req.query.direction === 'asc' ? 'asc' : 'desc';
       const activeOnly = req.query.activeOnly === 'true';
 
-      // Full accurate history - this is a deliberately-navigated page, not part of the
-      // auto-loading dashboard, so the slower unbounded dataset is the right trade-off here.
-      const { data, cacheStatus } = await ctx.dataService.getHistoricalCoreDataset();
+      // Cache-only read - never awaits a live 42 API call. Previously this awaited
+      // getHistoricalCoreDataset() directly, which on a cache miss pages through the full,
+      // unbounded history (100+ pages at the 42 API's 2 req/s limit) inline in the request,
+      // long enough to look like a hung connection to the client. Background prewarming (see
+      // BackgroundRefreshService) is what now keeps this cache-only read populated; it prefers
+      // the full historical dataset but falls back to the fast/recent-window one (flagged via
+      // `partialHistory`) rather than ever blocking on the slow load itself.
+      const snapshot = ctx.dataService.getStudentsListSnapshot();
+      if (snapshot.status === 'warming') {
+        sendError(res, 'CACHE_WARMING', 'Student data is still warming up. Please try again shortly.', 503);
+        return;
+      }
 
-      let filtered = data.students;
+      let filtered = snapshot.data.students;
       if (search) {
         filtered = filtered.filter(
           (s) => s.login.toLowerCase().includes(search) || s.displayName.toLowerCase().includes(search),
@@ -64,7 +73,7 @@ export function studentsRouter(ctx: AppContext): Router {
       sendData(
         res,
         { items, page, pageSize, totalItems, totalPages },
-        { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' },
+        { cached: true, staleData: snapshot.cacheStatus === 'stale', partialHistory: snapshot.partialHistory },
       );
     }),
   );

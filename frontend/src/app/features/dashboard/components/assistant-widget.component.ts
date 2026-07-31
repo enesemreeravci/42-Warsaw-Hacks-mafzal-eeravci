@@ -65,29 +65,21 @@ const WELCOME_MESSAGE =
         [attr.aria-label]="expanded() ? 'Close 42 Warsaw assistant' : 'Open 42 Warsaw assistant'"
       >
         <span class="assistant-toggle__pulse" aria-hidden="true"></span>
-        <svg class="assistant-avatar" viewBox="0 0 160 180" aria-hidden="true">
+        <svg class="assistant-avatar" viewBox="0 0 24 24" aria-hidden="true">
           <defs>
-            <linearGradient id="assistantHead" x1="0" y1="0" x2="1" y2="1">
+            <linearGradient id="assistantChatGradient" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stop-color="#4cc9f0" />
               <stop offset="55%" stop-color="#34e2c4" />
               <stop offset="100%" stop-color="#16f0a6" />
             </linearGradient>
-            <linearGradient id="assistantBody" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#16f0a6" />
-              <stop offset="100%" stop-color="#0d9488" />
-            </linearGradient>
           </defs>
 
-          <g class="assistant-antenna">
-            <line x1="80" y1="42" x2="80" y2="18" stroke="#34e2c4" stroke-width="4" stroke-linecap="round" />
-            <circle cx="80" cy="13" r="7" fill="#16f0a6" />
-          </g>
-
-          <rect x="38" y="112" width="84" height="56" rx="24" fill="url(#assistantBody)" />
-          <ellipse cx="80" cy="80" rx="56" ry="46" fill="url(#assistantHead)" />
-          <rect x="46" y="64" width="68" height="36" rx="18" fill="#06080a" />
-          <circle class="assistant-eye" cx="65" cy="82" r="7" fill="#34e2c4" />
-          <circle class="assistant-eye" cx="95" cy="82" r="7" fill="#34e2c4" />
+          <path
+            d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H10l-4.2 3.8a.5.5 0 0 1-.8-.37V16h-.5A2.5 2.5 0 0 1 2 13.5v-8A2.5 2.5 0 0 1 4 5.5Z"
+            fill="url(#assistantChatGradient)"
+          />
+          <circle class="assistant-eye" cx="9" cy="10" r="1.15" fill="#06080a" />
+          <circle class="assistant-eye" cx="13.5" cy="10" r="1.15" fill="#06080a" />
         </svg>
       </button>
     </div>

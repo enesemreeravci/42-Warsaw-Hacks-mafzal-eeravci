@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import type { NormalizedApiError } from '../../core/interceptors/error.interceptor';
 import type { ProjectListing, ProjectMetric } from '../../core/models/api.models';
@@ -38,6 +38,9 @@ export class ProjectsPage {
   protected readonly rows = signal<ProjectRow[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<NormalizedApiError | null>(null);
+  /** Set when one of the two metrics calls fails but the core project list still loaded -
+   * the table renders with zeroed metrics for that column instead of blanking the whole page. */
+  protected readonly partialError = signal<string | null>(null);
   protected readonly expandedProjectId = signal<number | null>(null);
   protected readonly sortKey = signal<SortKey>('completionCount');
   protected readonly sortDesc = signal(true);
@@ -77,14 +80,31 @@ export class ProjectsPage {
   private fetch(): void {
     this.loading.set(true);
     this.error.set(null);
+    this.partialError.set(null);
 
+    // Only the core project listing is treated as fatal - without it there are no rows to
+    // build at all. The two metrics calls each degrade to an empty array on failure so a single
+    // upstream 503 (e.g. the 42 API being unreachable) can't blank the whole page; the affected
+    // column just shows zeroed metrics with a banner explaining why.
     forkJoin({
-      projects: this.api.getProjects(),
-      allTime: this.api.getTopProjects(ALL_TIME_DAYS, MAX_PROJECTS),
-      recent: this.api.getTopProjects(RECENT_DAYS, MAX_PROJECTS),
+      projects: this.api.getProjects().pipe(map((envelope) => envelope.data)),
+      allTime: this.api.getTopProjects(ALL_TIME_DAYS, MAX_PROJECTS).pipe(
+        map((envelope) => envelope.data),
+        catchError((err: NormalizedApiError) => {
+          this.partialError.set(`All-time completion metrics are unavailable (${err.message}).`);
+          return of<ProjectMetric[]>([]);
+        }),
+      ),
+      recent: this.api.getTopProjects(RECENT_DAYS, MAX_PROJECTS).pipe(
+        map((envelope) => envelope.data),
+        catchError((err: NormalizedApiError) => {
+          this.partialError.set(`Last-7-days completion metrics are unavailable (${err.message}).`);
+          return of<ProjectMetric[]>([]);
+        }),
+      ),
     }).subscribe({
       next: ({ projects, allTime, recent }) => {
-        this.rows.set(this.merge(projects.data, allTime.data, recent.data));
+        this.rows.set(this.merge(projects, allTime, recent));
         this.loading.set(false);
       },
       error: (err: NormalizedApiError) => {

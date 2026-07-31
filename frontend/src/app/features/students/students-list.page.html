@@ -27,9 +27,7 @@
         {{ direction() === 'asc' ? 'Ascending' : 'Descending' }}
       </button>
 
-      <label class="active-toggle">
-        <mat-slide-toggle [checked]="activeOnly()" (change)="onActiveOnlyChange($event.checked)">Active only</mat-slide-toggle>
-      </label>
+      <mat-slide-toggle class="active-toggle" [checked]="activeOnly()" (change)="onActiveOnlyChange($event.checked)">Active only</mat-slide-toggle>
     </div>
   </header>
 

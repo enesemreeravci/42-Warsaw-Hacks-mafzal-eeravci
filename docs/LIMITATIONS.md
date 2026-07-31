@@ -104,6 +104,17 @@ it's listed here.
   was caught by noticing the returned coalition names didn't match Warsaw. `blocs` is
   genuinely campus/cursus-scoped and embeds exactly that campus's coalitions, each already
   carrying `score` - no separate aggregate call needed.
+- **Per-coalition "Top Contributor" scores come from `GET /v2/coalitions_users?filter[user_id]=`
+  (this campus's own roster IDs, comma-separated), not `filter[coalition_id]=`.** Coalitions
+  are shared network-wide, not campus-exclusive, so filtering by `coalition_id` alone mixes in
+  members from every other campus that shares the same coalition - a live sample under a
+  Warsaw coalition_id included a rank well outside what this campus's size would produce.
+  `filter[user_id]` scoped to the already-loaded roster is what's used instead. This also means
+  the "top contributor" is only ever a candidate from among *this campus's* students, computed
+  client-side - not necessarily that coalition's true global top scorer. Additionally,
+  `sort=-score` on this endpoint 400s ("the score field is not sortable"), so results are
+  batched (100 user IDs per request) and the max is taken client-side rather than requested
+  pre-sorted.
 - **`scale_teams`'s `filter[campus_id]` scoping is not verified to the same standard as the
   other filters above.** It returns `HTTP 200` with plausible-looking data for
   `filter[campus_id]=67`, but - unlike `cursus_users`/`projects_users`/`blocs` - this was not

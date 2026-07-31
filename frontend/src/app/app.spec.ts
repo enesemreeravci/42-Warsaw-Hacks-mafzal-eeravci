@@ -14,7 +14,6 @@ class DashboardStoreStub {
     topProjects: [],
     topStudentsByLevel: [],
     topStudentsByCompletedProjects: [],
-    featuredStudent: null,
     livePulse: null,
   });
   loading = signal(false);

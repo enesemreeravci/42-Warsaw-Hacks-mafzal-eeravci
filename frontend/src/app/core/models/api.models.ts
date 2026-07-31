@@ -60,6 +60,15 @@ export interface LivePulseResponse {
   achievements: AchievementEntry[];
 }
 
+/** The campus's single highest-scoring member of a given coalition. */
+export interface CoalitionTopContributor {
+  id: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  score: number;
+}
+
 /** A coalition's standing on the campus leaderboard. */
 export interface CoalitionStanding {
   id: number;
@@ -69,6 +78,8 @@ export interface CoalitionStanding {
   color: string | null;
   score: number;
   rank: number;
+  /** Null if no campus roster member could be matched against this coalition's membership. */
+  topContributor: CoalitionTopContributor | null;
 }
 
 /** A recently-filled peer evaluation. `comment`/`feedback` are never fetched by the backend - see docs/LIMITATIONS.md. */

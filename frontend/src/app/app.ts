@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
@@ -24,7 +23,6 @@ import { AchievementTakeoverOverlayComponent } from './features/dashboard/compon
     MatMenuModule,
     MatSlideToggleModule,
     MatTooltipModule,
-    DatePipe,
     AchievementTakeoverOverlayComponent,
   ],
   templateUrl: './app.html',
@@ -42,10 +40,17 @@ export class App {
   protected readonly clockLabel = signal(this.formatClock());
   protected readonly refreshIntervalOptions = [60, 120, 300, 600, 900];
 
+  protected readonly sidebarExpanded = signal(false);
+  private sidebarCollapseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private static readonly SIDEBAR_AUTO_HIDE_MS = 5000;
+
   constructor() {
     this.store.init();
     this.watchFullscreenChanges();
     this.watchAnnouncements();
+    this.destroyRef.onDestroy(() => {
+      if (this.sidebarCollapseTimeoutId !== null) clearTimeout(this.sidebarCollapseTimeoutId);
+    });
 
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
       this.currentUrl.set((e as NavigationEnd).urlAfterRedirects);
@@ -73,6 +78,26 @@ export class App {
 
   protected setRefreshInterval(seconds: number): void {
     this.store.setAutoRefreshInterval(seconds);
+  }
+
+  /** Instant expand on hover; cancels any pending auto-hide from a previous mouseleave. */
+  protected onSidebarEnter(): void {
+    if (this.sidebarCollapseTimeoutId !== null) {
+      clearTimeout(this.sidebarCollapseTimeoutId);
+      this.sidebarCollapseTimeoutId = null;
+    }
+    this.sidebarExpanded.set(true);
+  }
+
+  /** Starts a 5s inactivity timer - collapses only if the cursor hasn't returned by then. */
+  protected onSidebarLeave(): void {
+    if (this.sidebarCollapseTimeoutId !== null) {
+      clearTimeout(this.sidebarCollapseTimeoutId);
+    }
+    this.sidebarCollapseTimeoutId = setTimeout(() => {
+      this.sidebarExpanded.set(false);
+      this.sidebarCollapseTimeoutId = null;
+    }, App.SIDEBAR_AUTO_HIDE_MS);
   }
 
   private onKeydown(event: KeyboardEvent): void {

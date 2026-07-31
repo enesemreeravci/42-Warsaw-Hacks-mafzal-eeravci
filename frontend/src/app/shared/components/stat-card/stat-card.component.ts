@@ -17,8 +17,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
   styles: `
     .stat-card {
-      background: var(--color-bg-card);
-      border: 1px solid var(--color-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-lg);
       padding: var(--space-5) var(--space-6);
       display: flex;

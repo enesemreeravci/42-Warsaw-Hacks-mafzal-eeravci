@@ -14,6 +14,7 @@ const DEFAULT_SCENE_URL = 'https://prod.spline.design/quDX76eTdC6YCMca/scene.spl
   template: `
     <div
       class="mascot3d"
+      [class.mascot3d--mirrored]="mirrored()"
       [style.height.px]="heightPx()"
       role="button"
       tabindex="0"
@@ -37,11 +38,8 @@ const DEFAULT_SCENE_URL = 'https://prod.spline.design/quDX76eTdC6YCMca/scene.spl
       position: relative;
       width: 100%;
       height: 100%;
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      background: radial-gradient(circle at 50% 15%, rgba(52, 226, 196, 0.14), transparent 65%), var(--color-bg-elevated);
-      border: 1px solid var(--color-border);
       cursor: pointer;
+      background: transparent;
     }
 
     .mascot3d:focus-visible {
@@ -53,6 +51,10 @@ const DEFAULT_SCENE_URL = 'https://prod.spline.design/quDX76eTdC6YCMca/scene.spl
       display: block;
       width: 100%;
       height: 100%;
+    }
+
+    .mascot3d--mirrored spline-viewer {
+      transform: scaleX(-1);
     }
 
     .mascot3d__bubble {
@@ -124,6 +126,13 @@ export class Mascot3dComponent implements AfterViewInit, OnDestroy {
   readonly triggerObjectName = input<string | null>(null);
   /** Event name to emit on `triggerObjectName`, matching whatever trigger you set up in Spline's Events panel. */
   readonly triggerEventName = input<string>('mouseDown');
+  /** Optional external narration text (e.g. a rotating cue from a caller like
+   * NarratorRobotComponent) - overrides the default greeting whenever set, and is what the
+   * bubble reverts to after a transient "Hello!"/"Syncing…" message instead of the greeting. */
+  readonly message = input<string | null>(null);
+  /** Mirrors just the 3D viewer (not the speech bubble text) horizontally, so the mascot appears
+   * to gaze inward/left when it's perched at a target's top-right corner. */
+  readonly mirrored = input<boolean>(false);
 
   readonly refresh = output<void>();
 
@@ -147,6 +156,13 @@ export class Mascot3dComponent implements AfterViewInit, OnDestroy {
         this.announce('All caught up!', { revert: true });
       }
       this.wasRefreshing = isRefreshing;
+    });
+
+    effect(() => {
+      const msg = this.message();
+      if (msg !== null) {
+        this.announce(msg, { revert: false });
+      }
     });
   }
 
@@ -186,7 +202,7 @@ export class Mascot3dComponent implements AfterViewInit, OnDestroy {
 
     if (this.bubbleRevertTimeoutId !== null) clearTimeout(this.bubbleRevertTimeoutId);
     if (options.revert) {
-      this.bubbleRevertTimeoutId = setTimeout(() => this.announce(GREETING, { revert: false }), BUBBLE_REVERT_MS);
+      this.bubbleRevertTimeoutId = setTimeout(() => this.announce(this.message() ?? GREETING, { revert: false }), BUBBLE_REVERT_MS);
     }
   }
 
@@ -218,8 +234,19 @@ export class Mascot3dComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const HIDDEN_STYLE = 'display: none !important;';
+
+    // Guard is required, not cosmetic: this observer watches the `style` attribute (see below),
+    // and setAttribute() fires a mutation record even when the value is unchanged. Without the
+    // pre-check, applyHide()'s own write would re-trigger the observer, which calls applyHide()
+    // again, forever - a synchronous microtask loop that never yields back to the event loop
+    // (freezes the whole tab, no exception, confirmed live). Skipping the write when the style
+    // already matches breaks that cycle while still reacting to Spline re-showing the logo.
     const applyHide = () => {
-      shadowRoot.querySelector<HTMLElement>('#logo')?.setAttribute('style', 'display: none !important;');
+      const logo = shadowRoot.querySelector<HTMLElement>('#logo');
+      if (logo && logo.getAttribute('style') !== HIDDEN_STYLE) {
+        logo.setAttribute('style', HIDDEN_STYLE);
+      }
     };
 
     applyHide();
