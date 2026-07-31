@@ -5,6 +5,7 @@ import { createApp } from '../app.js';
 import type { AppContext } from '../appContext.js';
 import { loadConfig } from '../config/env.js';
 import { createLogger } from '../config/logger.js';
+import { BackgroundRefreshService } from '../services/backgroundRefresh.js';
 import { DataService } from '../services/dataService.js';
 import { StatusService } from '../services/statusService.js';
 import type { Ft42ApiClient } from '../services/ft42ApiClient.js';
@@ -59,7 +60,11 @@ function fakePaginate(path: string): Promise<unknown[]> {
 
 let app: Express;
 
-beforeAll(() => {
+// Mirrors index.ts's real startup sequence: the dashboard/students routes now only ever read
+// DataService's cache-only snapshots, so - exactly like production - the cache has to be
+// warmed once before any request is served, instead of relying on some earlier test's request
+// happening to have populated it as a side effect.
+beforeAll(async () => {
   const config = loadConfig({ FT42_CLIENT_ID: 'id', FT42_CLIENT_SECRET: 'secret', FEATURED_LOGIN: 'mafzal' });
   const logger = createLogger({ logLevel: 'silent' });
 
@@ -78,18 +83,23 @@ beforeAll(() => {
     getStatus: vi.fn().mockReturnValue({ authenticated: true, lastSuccessAt: new Date().toISOString(), lastError: null }),
   } as unknown as TokenManager;
 
+  const dataService = new DataService(config, fakeApiClient, fakeDiscoveryService, logger);
+  const backgroundRefresh = new BackgroundRefreshService(dataService, logger);
+
   const ctx: AppContext = {
     config,
     logger,
     tokenManager: fakeTokenManager,
     apiClient: fakeApiClient,
     discoveryService: fakeDiscoveryService,
-    dataService: new DataService(config, fakeApiClient, fakeDiscoveryService, logger),
+    dataService,
     statusService: new StatusService(fakeApiClient, fakeTokenManager, logger),
+    backgroundRefresh,
     startedAt: new Date(),
     refreshInProgress: false,
   };
 
+  await backgroundRefresh.warmup();
   app = createApp(ctx);
 });
 

@@ -46,4 +46,21 @@ describe('TtlCache', () => {
     cache.invalidateAll();
     expect(cache.get('k')).toBeUndefined();
   });
+
+  it('logs miss, hit, and in-flight-reused outcomes distinctly', async () => {
+    const debug = vi.fn();
+    const cache = new TtlCache<number>(10_000, { debug });
+    let resolveLoader: (v: number) => void = () => {};
+    const loader = vi.fn().mockImplementation(() => new Promise<number>((resolve) => (resolveLoader = resolve)));
+
+    const first = cache.getOrLoad('k', loader); // miss
+    const concurrent = cache.getOrLoad('k', loader); // in-flight-reused
+    resolveLoader(1);
+    await Promise.all([first, concurrent]);
+
+    await cache.getOrLoad('k', loader); // hit (fresh, within TTL)
+
+    const cacheStates = debug.mock.calls.map(([entry]) => entry.cache);
+    expect(cacheStates).toEqual(['miss', 'in-flight-reused', 'hit']);
+  });
 });

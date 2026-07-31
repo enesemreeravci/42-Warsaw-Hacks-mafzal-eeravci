@@ -37,7 +37,7 @@ calls the 42 API directly, and never stores anything credential-shaped. Full det
 
 ## Prerequisites
 
-- Node.js 20+ (Node 22 LTS recommended) and npm 10+
+- Node.js 24.15.0+ and npm 10+
 - A 42 API OAuth application — see below. **Required**; this dashboard runs entirely on
   live 42 API data and has no offline/demo mode.
 - Docker + Docker Compose (optional, for containerized runs)

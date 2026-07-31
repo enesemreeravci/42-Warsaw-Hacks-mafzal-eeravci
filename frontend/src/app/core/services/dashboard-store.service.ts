@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, catchError, filter, forkJoin, of, switchMap, tap, timer } from 'rxjs';
+import { Subject, catchError, filter, of, switchMap, timer } from 'rxjs';
 import type {
   AppConfigResponse,
   CoalitionStanding,
@@ -16,6 +16,7 @@ import type {
 } from '../models/api.models';
 import type { NormalizedApiError } from '../interceptors/error.interceptor';
 import { ApiService } from './api.service';
+import { LoadCycleService } from './load-cycle.service';
 import { VisibilityService } from './visibility.service';
 
 const DEFAULT_AUTO_REFRESH_SECONDS = 300;
@@ -43,6 +44,7 @@ export class DashboardStore {
   private readonly api = inject(ApiService);
   private readonly visibility = inject(VisibilityService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loadCycle = inject(LoadCycleService);
 
   private readonly dataSignal = signal<DashboardData>({
     summary: null,
@@ -69,6 +71,11 @@ export class DashboardStore {
   private readonly selectedPeriodDaysSignal = signal(30);
   private readonly configSignal = signal<AppConfigResponse | null>(null);
   private readonly ft42StatusSignal = signal<Ft42Status | null>(null);
+  /** Per-dataset error from the most recent load cycle, keyed by DashboardData field name.
+   * A dataset failing here does NOT blank the rest of the dashboard - the previous value for
+   * that field is kept and this map is how the failure stays visible instead of silently
+   * turning into an empty array. Cleared for a field as soon as it next succeeds. */
+  private readonly partialErrorsSignal = signal<Partial<Record<keyof DashboardData, string>>>({});
 
   readonly data = this.dataSignal.asReadonly();
   readonly loading = this.loadingSignal.asReadonly();
@@ -83,6 +90,7 @@ export class DashboardStore {
   readonly selectedPeriodDays = this.selectedPeriodDaysSignal.asReadonly();
   readonly config = this.configSignal.asReadonly();
   readonly ft42Status = this.ft42StatusSignal.asReadonly();
+  readonly partialErrors = this.partialErrorsSignal.asReadonly();
 
   private readonly manualRefresh$ = new Subject<void>();
   private isFetching = false;
@@ -162,9 +170,54 @@ export class DashboardStore {
       });
   }
 
+  /** Wraps one dataset call so its failure can't blank the rest of the dashboard: records the
+   * error against `field` (visible via `partialErrors()`) and resolves with `null` instead of
+   * throwing, so one failing endpoint never stops the others from rendering. */
+  private withPartialFailure<T>(field: keyof DashboardData, source: import('rxjs').Observable<T>) {
+    return source.pipe(
+      catchError((err: NormalizedApiError) => {
+        this.partialErrorsSignal.update((errors) => ({ ...errors, [field]: err.message }));
+        return of(null);
+      }),
+    );
+  }
+
+  /** Subscribes one dataset independently of the others, so its card updates the moment *its*
+   * endpoint responds instead of waiting for the slowest one in the batch (which `forkJoin`
+   * would otherwise force, even with every source already degrading failures to `null`). */
+  private loadField<T>(
+    loadId: string,
+    field: keyof DashboardData,
+    source: import('rxjs').Observable<T>,
+    apply: (data: DashboardData, value: T) => DashboardData,
+    onSettled: (succeeded: boolean) => void,
+  ): void {
+    this.withPartialFailure(field, source)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (this.loadCycle.currentId() !== loadId) {
+          onSettled(false); // superseded by a newer load cycle
+          return;
+        }
+
+        if (value !== null) {
+          this.dataSignal.update((prev) => apply(prev, value));
+          this.partialErrorsSignal.update((errors) => {
+            if (!(field in errors)) return errors;
+            const next = { ...errors };
+            delete next[field];
+            return next;
+          });
+        }
+
+        onSettled(value !== null);
+      });
+  }
+
   private loadAll(): void {
     if (this.isFetching) return;
     this.isFetching = true;
+    const loadId = this.loadCycle.startNewCycle();
 
     const hadDataBefore = this.dataSignal().summary !== null;
     if (hadDataBefore) {
@@ -176,53 +229,66 @@ export class DashboardStore {
     const days = this.selectedPeriodDaysSignal();
     const featuredLogin = this.configSignal()?.featuredLogin ?? 'mafzal';
 
-    forkJoin({
-      summary: this.api.getDashboardSummary(),
-      recentCompletions: this.api.getRecentCompletions(7, 20),
-      trend: this.api.getCompletionTrend(days),
-      topProjects: this.api.getTopProjects(days, 8),
-      topStudentsByLevel: this.api.getTopStudents('level', 8),
-      topStudentsByCompletedProjects: this.api.getTopStudents('completedProjects', 8),
-      featuredStudent: this.api.getStudentDetail(featuredLogin).pipe(catchError(() => of(null))),
-      livePulse: this.api.getLivePulse().pipe(catchError(() => of(null))),
-      coalitions: this.api.getCoalitions().pipe(catchError(() => of(null))),
-      evaluations: this.api.getEvaluations().pipe(catchError(() => of(null))),
-    })
-      .pipe(
-        tap(() => {
-          this.isFetching = false;
-        }),
-        catchError((err: NormalizedApiError) => {
-          this.isFetching = false;
-          this.loadingSignal.set(false);
-          this.refreshingSignal.set(false);
-          this.errorSignal.set(err);
-          this.lastFailedUpdateSignal.set(new Date());
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((result) => {
-        if (!result) return;
+    let remaining = 10;
+    let anySucceeded = false;
 
-        this.dataSignal.set({
-          summary: result.summary.data,
-          recentCompletions: result.recentCompletions.data,
-          trend: result.trend.data,
-          topProjects: result.topProjects.data,
-          topStudentsByLevel: result.topStudentsByLevel.data,
-          topStudentsByCompletedProjects: result.topStudentsByCompletedProjects.data,
-          featuredStudent: result.featuredStudent?.data ?? null,
-          livePulse: result.livePulse?.data ?? null,
-          coalitions: result.coalitions?.data ?? [],
-          evaluations: result.evaluations?.data ?? [],
-        });
+    const onSettled = (succeeded: boolean): void => {
+      anySucceeded = anySucceeded || succeeded;
+      remaining -= 1;
+      if (remaining > 0) return;
 
-        this.staleSignal.set(Boolean(result.summary.meta.staleData));
+      this.isFetching = false;
+      this.loadingSignal.set(false);
+      this.refreshingSignal.set(false);
+
+      if (anySucceeded) {
         this.errorSignal.set(null);
-        this.loadingSignal.set(false);
-        this.refreshingSignal.set(false);
         this.lastSuccessfulUpdateSignal.set(new Date());
-      });
+      } else {
+        // Every dataset failed this cycle (e.g. the backend is unreachable) - surface it as a
+        // hard error instead of silently leaving stale/empty cards with no explanation.
+        const firstMessage = Object.values(this.partialErrorsSignal())[0] ?? 'Failed to load dashboard data.';
+        this.errorSignal.set({ code: 'LOAD_FAILED', message: firstMessage, status: 0 });
+        this.lastFailedUpdateSignal.set(new Date());
+      }
+    };
+
+    this.loadField(loadId, 'summary', this.api.getDashboardSummary(), (data, envelope) => {
+      this.staleSignal.set(Boolean(envelope.meta.staleData));
+      return { ...data, summary: envelope.data };
+    }, onSettled);
+    this.loadField(loadId, 'recentCompletions', this.api.getRecentCompletions(7, 20), (data, envelope) => ({
+      ...data,
+      recentCompletions: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'trend', this.api.getCompletionTrend(days), (data, envelope) => ({ ...data, trend: envelope.data }), onSettled);
+    this.loadField(loadId, 'topProjects', this.api.getTopProjects(days, 8), (data, envelope) => ({
+      ...data,
+      topProjects: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'topStudentsByLevel', this.api.getTopStudents('level', 8), (data, envelope) => ({
+      ...data,
+      topStudentsByLevel: envelope.data,
+    }), onSettled);
+    this.loadField(
+      loadId,
+      'topStudentsByCompletedProjects',
+      this.api.getTopStudents('completedProjects', 8),
+      (data, envelope) => ({ ...data, topStudentsByCompletedProjects: envelope.data }),
+      onSettled,
+    );
+    this.loadField(loadId, 'featuredStudent', this.api.getStudentDetail(featuredLogin), (data, envelope) => ({
+      ...data,
+      featuredStudent: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'livePulse', this.api.getLivePulse(), (data, envelope) => ({ ...data, livePulse: envelope.data }), onSettled);
+    this.loadField(loadId, 'coalitions', this.api.getCoalitions(), (data, envelope) => ({
+      ...data,
+      coalitions: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'evaluations', this.api.getEvaluations(), (data, envelope) => ({
+      ...data,
+      evaluations: envelope.data,
+    }), onSettled);
   }
 }

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonToggleModule, MatButtonToggleChange } from '@angular/material/button-toggle';
 import { filter, timer } from 'rxjs';
@@ -10,6 +10,7 @@ import { ErrorStateComponent } from '../../shared/components/error-state/error-s
 import { LoadingSkeletonComponent } from '../../shared/components/loading-skeleton/loading-skeleton.component';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { AchievementSpotlightComponent } from './components/achievement-spotlight.component';
+import { AssistantWidgetComponent } from './components/assistant-widget.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
 import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
 import { CommunityProgressComponent } from './components/community-progress.component';
@@ -17,6 +18,7 @@ import { CompletionTrendChartComponent } from './components/completion-trend-cha
 import { FeaturedStudentCardComponent } from './components/featured-student-card.component';
 import { HiveNodeMapComponent } from './components/hive-node-map.component';
 import { LiveEvaluationsComponent } from './components/live-evaluations.component';
+import { Mascot3dComponent } from './components/mascot-3d.component';
 import { SystemStatusComponent } from './components/system-status.component';
 import { TopProjectsListComponent } from './components/top-projects-list.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
@@ -30,6 +32,8 @@ import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.compone
     ErrorStateComponent,
     LoadingSkeletonComponent,
     StatCardComponent,
+    Mascot3dComponent,
+    AssistantWidgetComponent,
     CelebrationCarouselComponent,
     CommunityProgressComponent,
     CompletionTrendChartComponent,
@@ -53,6 +57,10 @@ export class DashboardPage {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly periodOptions = [7, 14, 30, 60, 90];
+
+  protected readonly partialErrorEntries = computed(() =>
+    Object.entries(this.store.partialErrors()).map(([field, message]) => ({ field, message })),
+  );
 
   constructor() {
     timer(0, 1000)

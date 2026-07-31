@@ -1,7 +1,9 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import type { AppContext } from '../appContext.js';
 import { sendData, sendError } from '../middleware/envelope.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import type { CoreDataset } from '../services/dataService.js';
+import type { DiscoveredConfig } from '../services/discoveryService.js';
 import {
   buildCompletionTrend,
   buildDashboardSummary,
@@ -13,10 +15,52 @@ import {
 } from '../services/metrics.js';
 import { buildActiveNow, buildAchievementFeed, buildBlackHoleWatch, buildXpLeaderboard } from '../services/livePulse.js';
 
+type SnapshotCacheStatus = 'fresh' | 'cached' | 'stale';
+
+// Never actually read (buildX() below only touch students/completions) - only exists so the
+// "still warming up" fallback can hand callers a structurally valid CoreDataset.
+const EMPTY_DATASET: CoreDataset = {
+  students: [],
+  completions: [],
+  discovered: {} as DiscoveredConfig,
+  currentProjectsByStudent: new Map(),
+};
+
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   if (Number.isNaN(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
+}
+
+/**
+ * Every dashboard GET route reads through here instead of calling DataService's live loaders
+ * directly - this is what guarantees a GET request never waits on a live 42 API call. When the
+ * cache hasn't been populated yet (only possible in the brief window before the first
+ * background refresh cycle completes, or if that cycle is failing outright) it responds
+ * immediately with either a clearly-flagged empty dataset or a 502 carrying the real upstream
+ * error, rather than blocking.
+ */
+function sendFromCoreSnapshot<T>(
+  ctx: AppContext,
+  res: Response,
+  build: (data: CoreDataset, cacheStatus: SnapshotCacheStatus) => T,
+): void {
+  const snapshot = ctx.dataService.getCoreDatasetSnapshot();
+  if (snapshot) {
+    sendData(res, build(snapshot.data, snapshot.cacheStatus), {
+      cached: true,
+      staleData: snapshot.cacheStatus === 'stale',
+    });
+    return;
+  }
+
+  const status = ctx.backgroundRefresh.getStatus();
+  if (status.lastCoreError) {
+    sendError(res, 'CACHE_UNAVAILABLE', `Dashboard data is temporarily unavailable: ${status.lastCoreError}`, 502);
+    return;
+  }
+
+  sendData(res, build(EMPTY_DATASET, 'stale'), { cached: false, staleData: true, warming: true });
 }
 
 export function dashboardRouter(ctx: AppContext): Router {
@@ -25,9 +69,7 @@ export function dashboardRouter(ctx: AppContext): Router {
   router.get(
     '/dashboard/summary',
     asyncHandler(async (_req, res) => {
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
-      const summary = buildDashboardSummary(data.students, data.completions, new Date(), cacheStatus);
-      sendData(res, summary, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+      sendFromCoreSnapshot(ctx, res, (data, cacheStatus) => buildDashboardSummary(data.students, data.completions, new Date(), cacheStatus));
     }),
   );
 
@@ -36,15 +78,14 @@ export function dashboardRouter(ctx: AppContext): Router {
     asyncHandler(async (req, res) => {
       const days = clampInt(req.query.days, 7, 1, 365);
       const limit = clampInt(req.query.limit, 20, 1, 100);
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-      const recent = data.completions
-        .filter((c) => c.validated && new Date(c.completedAt) >= since)
-        .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
-        .slice(0, limit);
-
-      sendData(res, recent, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+      sendFromCoreSnapshot(ctx, res, (data) => {
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        return data.completions
+          .filter((c) => c.validated && new Date(c.completedAt) >= since)
+          .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+          .slice(0, limit);
+      });
     }),
   );
 
@@ -52,9 +93,7 @@ export function dashboardRouter(ctx: AppContext): Router {
     '/dashboard/completion-trend',
     asyncHandler(async (req, res) => {
       const days = clampInt(req.query.days, 30, 1, 365);
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
-      const trend = buildCompletionTrend(data.completions, days, new Date());
-      sendData(res, trend, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+      sendFromCoreSnapshot(ctx, res, (data) => buildCompletionTrend(data.completions, days, new Date()));
     }),
   );
 
@@ -63,12 +102,12 @@ export function dashboardRouter(ctx: AppContext): Router {
     asyncHandler(async (req, res) => {
       const days = clampInt(req.query.days, 30, 1, 365);
       const limit = clampInt(req.query.limit, 10, 1, 50);
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const recentCompletions = data.completions.filter((c) => new Date(c.completedAt) >= since);
-      const metrics = buildProjectMetrics(recentCompletions);
-      const top = topProjectsByCompletions(metrics, limit);
-      sendData(res, top, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+
+      sendFromCoreSnapshot(ctx, res, (data) => {
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const recentCompletions = data.completions.filter((c) => new Date(c.completedAt) >= since);
+        return topProjectsByCompletions(buildProjectMetrics(recentCompletions), limit);
+      });
     }),
   );
 
@@ -78,44 +117,50 @@ export function dashboardRouter(ctx: AppContext): Router {
       const metric = String(req.query.metric ?? 'level');
       const limit = clampInt(req.query.limit, 10, 1, 50);
       const days = clampInt(req.query.days, 30, 1, 365);
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
 
-      let result: unknown;
-      if (metric === 'completedProjects') {
-        result = topStudentsByCompletedProjects(data.students, limit);
-      } else if (metric === 'recentCompletions') {
-        result = topStudentsByRecentCompletions(data.students, data.completions, days, new Date(), limit);
-      } else if (metric === 'level') {
-        result = topStudentsByLevel(data.students, limit);
-      } else {
+      if (!['completedProjects', 'recentCompletions', 'level'].includes(metric)) {
         sendError(res, 'INVALID_METRIC', 'metric must be one of level, completedProjects, recentCompletions', 400);
         return;
       }
 
-      sendData(res, result, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+      sendFromCoreSnapshot(ctx, res, (data) => {
+        if (metric === 'completedProjects') return topStudentsByCompletedProjects(data.students, limit);
+        if (metric === 'recentCompletions') return topStudentsByRecentCompletions(data.students, data.completions, days, new Date(), limit);
+        return topStudentsByLevel(data.students, limit);
+      });
     }),
   );
 
   router.get(
     '/dashboard/live-pulse',
     asyncHandler(async (_req, res) => {
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
-      const now = new Date();
-      const livePulse = {
-        activeNow: buildActiveNow(data.students, now, 40),
-        xpLeaderboard: buildXpLeaderboard(data.completions, 7, now, 10),
-        blackHoleWatch: buildBlackHoleWatch(data.students, now, 8),
-        achievements: buildAchievementFeed(data.completions, 3, now, 15),
-      };
-      sendData(res, livePulse, { cached: cacheStatus !== 'fresh', staleData: cacheStatus === 'stale' });
+      sendFromCoreSnapshot(ctx, res, (data) => {
+        const now = new Date();
+        return {
+          activeNow: buildActiveNow(data.students, now, 40),
+          xpLeaderboard: buildXpLeaderboard(data.completions, 7, now, 10),
+          blackHoleWatch: buildBlackHoleWatch(data.students, now, 8),
+          achievements: buildAchievementFeed(data.completions, 3, now, 15),
+        };
+      });
     }),
   );
 
   router.get(
     '/dashboard/coalitions',
     asyncHandler(async (_req, res) => {
-      const standings = await ctx.dataService.getCoalitions();
-      sendData(res, standings);
+      const standings = ctx.dataService.getCoalitionsSnapshot();
+      if (standings) {
+        sendData(res, standings, { cached: true });
+        return;
+      }
+
+      const status = ctx.backgroundRefresh.getStatus();
+      if (status.lastCoreError) {
+        sendError(res, 'CACHE_UNAVAILABLE', `Coalition standings are temporarily unavailable: ${status.lastCoreError}`, 502);
+        return;
+      }
+      sendData(res, [], { cached: false, warming: true });
     }),
   );
 
@@ -123,8 +168,18 @@ export function dashboardRouter(ctx: AppContext): Router {
     '/dashboard/evaluations',
     asyncHandler(async (req, res) => {
       const limit = clampInt(req.query.limit, 15, 1, 50);
-      const evaluations = await ctx.dataService.getRecentEvaluations(limit);
-      sendData(res, evaluations);
+      const evaluations = ctx.dataService.getEvaluationsSnapshot(limit);
+      if (evaluations) {
+        sendData(res, evaluations, { cached: true });
+        return;
+      }
+
+      const status = ctx.backgroundRefresh.getStatus();
+      if (status.lastCoreError) {
+        sendError(res, 'CACHE_UNAVAILABLE', `Evaluations are temporarily unavailable: ${status.lastCoreError}`, 502);
+        return;
+      }
+      sendData(res, [], { cached: false, warming: true });
     }),
   );
 

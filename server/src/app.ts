@@ -25,8 +25,31 @@ export function createApp(ctx: AppContext): Express {
   app.use(compression());
   app.use(express.json());
 
-  app.use((req, _res, next) => {
-    ctx.logger.info({ method: req.method, path: req.path }, 'incoming request');
+  app.use((req, res, next) => {
+    const start = process.hrtime.bigint();
+    // Diagnostic-only correlation ID set by the Angular app for one loadAll() batch - never
+    // used for auth/routing, just so backend logs can tell "one load cycle, several routes"
+    // apart from "several separate load cycles" (double init, manual reloads, retries).
+    const loadId = req.header('x-dashboard-load-id') ?? null;
+    let completed = false;
+
+    ctx.logger.info({ method: req.method, path: req.path, loadId }, 'incoming request');
+
+    res.on('finish', () => {
+      completed = true;
+      const durationMs = Math.round(Number(process.hrtime.bigint() - start) / 1_000_000);
+      ctx.logger.info({ method: req.method, path: req.path, status: res.statusCode, durationMs, loadId }, 'request completed');
+    });
+
+    res.on('close', () => {
+      if (completed) return;
+      const durationMs = Math.round(Number(process.hrtime.bigint() - start) / 1_000_000);
+      ctx.logger.warn(
+        { method: req.method, path: req.path, durationMs, loadId },
+        'request connection closed before a response was sent',
+      );
+    });
+
     next();
   });
 

@@ -11,7 +11,7 @@ import { createLogger } from './config/logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-function main(): void {
+async function main(): Promise<void> {
   let config;
   try {
     config = loadConfig(process.env);
@@ -27,6 +27,16 @@ function main(): void {
   const ctx = createAppContext(config, logger);
   const app = createApp(ctx);
 
+  // Kick off cache warming, but never let it gate the HTTP listener: DataService's retry logic
+  // honors the 42 API's own Retry-After header (seen live: 129s after a 429), so "warmup" can
+  // legitimately take minutes even though it never throws. Blocking listen() on that would make
+  // the *entire* server - health checks, static assets, everything - unreachable for that whole
+  // window, which is worse than the slow-dashboard-request problem this was meant to fix.
+  // Routes already degrade to a fast "warming" response via DataService's cache-only snapshots
+  // (see routes/dashboard.ts, routes/students.ts) until the first cycle actually completes.
+  void ctx.backgroundRefresh.warmup();
+  ctx.backgroundRefresh.start();
+
   app.listen(config.port, () => {
     logger.info(
       { port: config.port, frontendOrigin: config.frontendOrigin },
@@ -35,4 +45,7 @@ function main(): void {
   });
 }
 
-main();
+main().catch((error) => {
+  console.error('Fatal startup error', error);
+  process.exit(1);
+});

@@ -9,6 +9,10 @@ export interface CacheGetResult<T> {
   status: 'fresh' | 'stale';
 }
 
+export interface CacheLogger {
+  debug(obj: Record<string, unknown>, msg: string): void;
+}
+
 /**
  * TTL cache with stale-on-error fallback and in-flight request de-duplication
  * (a "cache stampede" guard) so concurrent callers share one upstream load.
@@ -17,7 +21,10 @@ export class TtlCache<T = unknown> {
   private readonly store = new Map<string, CacheEntry<T>>();
   private readonly inFlight = new Map<string, Promise<T>>();
 
-  constructor(private readonly defaultTtlMs: number) {}
+  constructor(
+    private readonly defaultTtlMs: number,
+    private readonly logger?: CacheLogger,
+  ) {}
 
   get(key: string): CacheGetResult<T> | undefined {
     const entry = this.store.get(key);
@@ -44,15 +51,18 @@ export class TtlCache<T = unknown> {
   async getOrLoad(key: string, loader: () => Promise<T>, ttlMs = this.defaultTtlMs): Promise<CacheGetResult<T>> {
     const cached = this.get(key);
     if (cached && cached.status === 'fresh') {
+      this.logger?.debug({ key, cache: 'hit' }, 'cache lookup');
       return cached;
     }
 
     const existingLoad = this.inFlight.get(key);
     if (existingLoad) {
+      this.logger?.debug({ key, cache: 'in-flight-reused' }, 'cache lookup');
       const value = await existingLoad;
       return { value, status: 'fresh' };
     }
 
+    this.logger?.debug({ key, cache: 'miss' }, 'cache lookup');
     const loadPromise = loader()
       .then((value) => {
         this.set(key, value, ttlMs);
@@ -69,6 +79,7 @@ export class TtlCache<T = unknown> {
       return { value, status: 'fresh' };
     } catch (error) {
       if (cached) {
+        this.logger?.debug({ key, cache: 'stale-fallback' }, 'cache lookup');
         return { value: cached.value, status: 'stale' };
       }
       throw error;

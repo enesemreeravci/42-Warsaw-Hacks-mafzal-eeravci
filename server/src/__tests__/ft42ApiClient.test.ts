@@ -23,30 +23,45 @@ function axiosError(status: number): AxiosError {
 
 describe('Ft42ApiClient', () => {
   it('invalidates the cached token and retries exactly once after a 401', async () => {
-    const tokenManager = fakeTokenManager(['tok-1', 'tok-2']);
-    const get = vi.fn().mockRejectedValueOnce(axiosError(401)).mockResolvedValueOnce({ data: { ok: true } });
-    const http = { get } as unknown as AxiosInstance;
+    vi.useFakeTimers();
+    try {
+      const tokenManager = fakeTokenManager(['tok-1', 'tok-2']);
+      const get = vi.fn().mockRejectedValueOnce(axiosError(401)).mockResolvedValueOnce({ data: { ok: true } });
+      const http = { get } as unknown as AxiosInstance;
 
-    const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
-    const result = await client.get('/v2/campus');
+      const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
+      const pending = client.get('/v2/campus');
+      const assertion = expect(pending).resolves.toEqual({ ok: true });
+      await vi.runAllTimersAsync();
+      await assertion;
 
-    expect(result).toEqual({ ok: true });
-    expect(tokenManager.invalidate).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenCalledTimes(2);
-    expect(get.mock.calls[1]![1].headers.Authorization).toBe('Bearer tok-2');
+      expect(tokenManager.invalidate).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(get.mock.calls[1]![1].headers.Authorization).toBe('Bearer tok-2');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('throws instead of retrying forever when a second consecutive 401 follows the retry', async () => {
-    const tokenManager = fakeTokenManager(['tok-1', 'tok-2']);
-    const get = vi.fn().mockRejectedValue(axiosError(401));
-    const http = { get } as unknown as AxiosInstance;
+    vi.useFakeTimers();
+    try {
+      const tokenManager = fakeTokenManager(['tok-1', 'tok-2']);
+      const get = vi.fn().mockRejectedValue(axiosError(401));
+      const http = { get } as unknown as AxiosInstance;
 
-    const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
-    await expect(client.get('/v2/campus')).rejects.toBeInstanceOf(Ft42ApiError);
+      const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
+      const pending = client.get('/v2/campus');
+      const assertion = expect(pending).rejects.toBeInstanceOf(Ft42ApiError);
+      await vi.runAllTimersAsync();
+      await assertion;
 
-    // Exactly one retry: the original attempt plus one retry after invalidation, never more.
-    expect(get).toHaveBeenCalledTimes(2);
-    expect(tokenManager.invalidate).toHaveBeenCalledTimes(1);
+      // Exactly one retry: the original attempt plus one retry after invalidation, never more.
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(tokenManager.invalidate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('propagates a token acquisition failure without ever calling the 42 API', async () => {
@@ -60,5 +75,55 @@ describe('Ft42ApiClient', () => {
     const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
     await expect(client.get('/v2/campus')).rejects.toThrow('token acquisition failed');
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it('gives up after a bounded number of retries on a sustained 429 and surfaces a rate-limit error, never retrying forever', async () => {
+    vi.useFakeTimers();
+    try {
+      const tokenManager = fakeTokenManager(['tok-1']);
+      const get = vi.fn().mockRejectedValue(axiosError(429));
+      const http = { get } as unknown as AxiosInstance;
+
+      const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
+      const pending = client.get('/v2/campus');
+      const assertion = expect(pending).rejects.toMatchObject({ status: 429, code: 'FT42_UPSTREAM_ERROR' });
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      // 1 initial attempt + MAX_RETRIES(3) retries = 4 calls total, then it stops.
+      expect(get).toHaveBeenCalledTimes(4);
+      // 429 is a rate-limit signal, not an auth failure - the cached token must survive it.
+      expect(tokenManager.invalidate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('honors a Retry-After header when backing off from a 429', async () => {
+    vi.useFakeTimers();
+    try {
+      const tokenManager = fakeTokenManager(['tok-1']);
+      const rateLimited = axiosError(429);
+      rateLimited.response!.headers = { 'retry-after': '5' };
+      const get = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited)
+        .mockResolvedValueOnce({ data: { ok: true } });
+      const http = { get } as unknown as AxiosInstance;
+
+      const client = new Ft42ApiClient(config, tokenManager, silentLogger, http);
+      const pending = client.get('/v2/campus');
+
+      // Under 5s: must not have retried yet.
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(get).toHaveBeenCalledTimes(1);
+
+      // At/after 5s: the Retry-After-driven retry fires.
+      await vi.advanceTimersByTimeAsync(1_500);
+      await expect(pending).resolves.toEqual({ ok: true });
+      expect(get).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

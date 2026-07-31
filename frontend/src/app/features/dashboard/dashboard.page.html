@@ -1,4 +1,6 @@
 <div class="dashboard" [class.dashboard--tv]="tvMode.enabled()">
+  <app-assistant-widget />
+
   @if (store.error() && !store.data().summary) {
     <app-error-state
       title="Couldn't load the dashboard"
@@ -18,6 +20,15 @@
       </div>
     }
 
+    @if (partialErrorEntries().length > 0) {
+      <div class="inline-banner" role="alert">
+        {{ partialErrorEntries().length }} of 10 dashboard sections failed to refresh and are showing older data:
+        @for (entry of partialErrorEntries(); track entry.field) {
+          <span class="inline-banner__item">{{ entry.field }} ({{ entry.message }})</span>
+        }
+      </div>
+    }
+
     @if (!tvMode.enabled()) {
       <section class="section" aria-labelledby="summary-heading">
         <h2 id="summary-heading" class="visually-hidden">Community summary</h2>
@@ -30,14 +41,20 @@
           <app-stat-card label="Last refresh" [value]="(store.lastSuccessfulUpdate() | date: 'HH:mm:ss') ?? '—'" />
         </div>
 
-        <div class="panel">
-          <h3>System status</h3>
-          <app-system-status
-            [cacheStatus]="store.data().summary?.cacheStatus ?? 'fresh'"
-            [ft42Status]="store.ft42Status()"
-            [autoRefreshEnabled]="store.autoRefreshEnabled()"
-            [countdownSeconds]="store.countdownSeconds()"
-          />
+        <div class="section--split">
+          <div class="panel">
+            <h3>System status</h3>
+            <app-system-status
+              [cacheStatus]="store.data().summary?.cacheStatus ?? 'fresh'"
+              [ft42Status]="store.ft42Status()"
+              [autoRefreshEnabled]="store.autoRefreshEnabled()"
+              [countdownSeconds]="store.countdownSeconds()"
+            />
+          </div>
+
+          <div class="panel panel--guide">
+            <app-mascot-3d [refreshing]="store.refreshing()" (refresh)="store.refreshNow()" [heightPx]="240" />
+          </div>
         </div>
       </section>
 

@@ -2,6 +2,7 @@ import axios, { type AxiosInstance } from 'axios';
 import { z } from 'zod';
 import type { AppConfig } from '../config/env.js';
 import type { Logger } from '../config/logger.js';
+import { RateLimiter } from '../utils/rateLimiter.js';
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -34,6 +35,7 @@ export class TokenManager {
     private readonly config: Pick<AppConfig, 'ft42ApiBaseUrl' | 'ft42ClientId' | 'ft42ClientSecret'>,
     private readonly logger: Logger,
     httpClient?: AxiosInstance,
+    private readonly rateLimiter: RateLimiter = new RateLimiter({ minIntervalMs: 600 }),
   ) {
     this.http = httpClient ?? axios.create({ baseURL: config.ft42ApiBaseUrl, timeout: 10_000 });
   }
@@ -83,9 +85,11 @@ export class TokenManager {
         client_secret: this.config.ft42ClientSecret,
       });
 
-      const response = await this.http.post('/oauth/token', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
+      const response = await this.rateLimiter.schedule(() =>
+        this.http.post('/oauth/token', body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        }),
+      );
 
       const parsed = tokenResponseSchema.safeParse(response.data);
       if (!parsed.success) {

@@ -41,7 +41,9 @@ export function studentsRouter(ctx: AppContext): Router {
       const direction = req.query.direction === 'asc' ? 'asc' : 'desc';
       const activeOnly = req.query.activeOnly === 'true';
 
-      const { data, cacheStatus } = await ctx.dataService.getCoreDataset();
+      // Full accurate history - this is a deliberately-navigated page, not part of the
+      // auto-loading dashboard, so the slower unbounded dataset is the right trade-off here.
+      const { data, cacheStatus } = await ctx.dataService.getHistoricalCoreDataset();
 
       let filtered = data.students;
       if (search) {
@@ -71,12 +73,31 @@ export function studentsRouter(ctx: AppContext): Router {
     '/students/:login',
     asyncHandler(async (req, res) => {
       const login = String(req.params.login);
-      const detail = await ctx.dataService.getStudentDetail(login);
-      if (!detail) {
+
+      // Cache-only read - never awaits a live 42 API call. Previously this awaited
+      // getStudentDetail(), which reads through the unbounded historical dataset (100+ paginated
+      // requests at the 42 API's 2 req/s limit); on a cache miss that could take a minute or
+      // more, long enough to look like a hung connection to the client. Background prewarming
+      // (see BackgroundRefreshService) is what now keeps this cache-only read populated.
+      const snapshot = ctx.dataService.getStudentDetailSnapshot(login);
+
+      if (snapshot.status === 'warming') {
+        sendError(res, 'CACHE_WARMING', 'Student data is still warming up. Please try again shortly.', 503);
+        return;
+      }
+      if (!snapshot.detail) {
         sendError(res, 'STUDENT_NOT_FOUND', `No student found with login "${login}".`, 404);
         return;
       }
-      sendData(res, detail);
+
+      sendData(res, snapshot.detail, {
+        cached: true,
+        staleData: snapshot.cacheStatus === 'stale',
+        // Full completed-project history isn't cached yet - the recent-window dataset was used
+        // instead, so completedProjects only reflects the last ~45 days until the next
+        // historical background cycle completes.
+        partialHistory: snapshot.partialHistory,
+      });
     }),
   );
 

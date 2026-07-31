@@ -30,16 +30,11 @@
 }
 
 .app-header__mark {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--color-bg);
-  background: linear-gradient(135deg, var(--color-accent), var(--color-info));
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: cover;
+  background: #fff;
 }
 
 .app-header__title {
