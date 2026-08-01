@@ -23,6 +23,16 @@ export const routes: Routes = [
     title: 'Projects — 42 Warsaw Insight',
   },
   {
+    path: 'evaluations',
+    loadComponent: () => import('./features/evaluations/evaluations.page').then((m) => m.EvaluationsPage),
+    title: 'Evaluations — 42 Warsaw Insight',
+  },
+  {
+    path: 'blackhole',
+    loadComponent: () => import('./features/blackhole/blackhole.page').then((m) => m.BlackholePage),
+    title: 'Black Hole — 42 Warsaw Insight',
+  },
+  {
     path: 'about',
     loadComponent: () => import('./features/about/about.page').then((m) => m.AboutPage),
     title: 'About — 42 Warsaw Insight',

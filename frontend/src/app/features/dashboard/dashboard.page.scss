@@ -62,6 +62,13 @@
   align-items: start;
 }
 
+.section--weekly-activity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
 .panel {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
@@ -122,7 +129,8 @@
 }
 
 @media (max-width: 1100px) {
-  .section--split {
+  .section--split,
+  .section--weekly-activity {
     grid-template-columns: 1fr;
   }
 }

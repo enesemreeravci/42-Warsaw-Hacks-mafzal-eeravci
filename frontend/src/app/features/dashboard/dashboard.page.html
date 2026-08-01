@@ -103,6 +103,25 @@
         </div>
       </section>
 
+      <section class="section section--weekly-activity" aria-label="Weekly campus activity">
+        <div class="panel">
+          <app-weekly-campus-activity-board
+            title="Most Campus Time — Last 7 Days"
+            metric="time"
+            [activity]="store.data().weeklyCampusActivity"
+            [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+          />
+        </div>
+        <div class="panel">
+          <app-weekly-campus-activity-board
+            title="Most Sessions Started — Last 7 Days"
+            metric="sessions"
+            [activity]="store.data().weeklyCampusActivity"
+            [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+          />
+        </div>
+      </section>
+
       <section class="section" aria-label="Upcoming events">
         <div
           class="panel"

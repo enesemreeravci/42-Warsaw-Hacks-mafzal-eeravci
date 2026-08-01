@@ -45,7 +45,7 @@ interface CoalitionCard {
                 <app-avatar
                   [imageUrl]="leader.standing.topContributor?.imageUrl ?? null"
                   [name]="leader.standing.topContributor?.displayName ?? leader.standing.name"
-                  [size]="76"
+                  [size]="112"
                 />
                 <p class="leaderboard__center-name">{{ leader.standing.topContributor?.displayName ?? 'No contributor yet' }}</p>
                 @if (leader.standing.topContributor; as top) {
@@ -200,22 +200,25 @@ interface CoalitionCard {
 
     .leaderboard__center-name {
       margin: var(--space-2) 0 0;
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       font-weight: 800;
-      max-width: 16ch;
+      max-width: 14ch;
+      text-align: center;
+      line-height: 1.2;
     }
 
     .leaderboard__center-score {
       margin: 0;
-      font-weight: 700;
+      font-size: 1rem;
+      font-weight: 800;
       color: var(--color-warn);
     }
 
     .leaderboard__center-coalition {
       margin: 0;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--color-text-muted);
     }
 
@@ -439,7 +442,7 @@ export class CoalitionLeaderboardComponent {
   protected readonly chartOptions: ChartConfiguration<'doughnut'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '68%',
+    cutout: '74%',
     animation: { duration: 500 },
     plugins: {
       legend: { display: false },

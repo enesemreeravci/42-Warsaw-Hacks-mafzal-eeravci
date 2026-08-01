@@ -65,6 +65,15 @@ const WEEKLY_TOP_CONTRIBUTOR_DAYS = 7;
 // waiting longer for (a deliberately-opened student profile), not for the auto-loading dashboard.
 const RECENT_WINDOW_DAYS = 45;
 const HISTORICAL_TTL_MS = 15 * 60 * 1000;
+const EVAL_ANALYTICS_KEY = 'eval-analytics-scale-teams';
+// 30 min: analytics data changes slowly; a longer TTL avoids hammering the 42 API
+// every time the page is opened but still reflects same-day evaluation activity.
+const EVAL_ANALYTICS_TTL_MS = 30 * 60 * 1000;
+// 30 days covers the TASK.md date-range options (today through thisMonth).
+const EVAL_ANALYTICS_WINDOW_DAYS = 30;
+// Up to 30 pages × 100 records/page = up to 3000 filled scale_teams.
+const EVAL_ANALYTICS_MAX_PAGES = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const UPCOMING_EVENTS_KEY = 'upcoming-events';
 const UPCOMING_EVENTS_LIMIT = 5;
 const WEEKLY_CAMPUS_ACTIVITY_KEY = 'weekly-campus-activity';
@@ -452,6 +461,49 @@ export class DataService {
     );
 
     return response;
+  }
+
+  /**
+   * Returns raw scale_team + student data for the evaluation analytics page.
+   * On first call, fetches up to EVAL_ANALYTICS_MAX_PAGES of filled evaluations
+   * from the 42 API (using `range[filled_at]` to bound to the last 30 days).
+   * Subsequent calls within EVAL_ANALYTICS_TTL_MS serve from cache.
+   * Follows the same lazy-load pattern as getWeeklyCampusActivity().
+   */
+  async getEvalAnalyticsData(): Promise<{ scaleTeams: RawScaleTeam[]; students: StudentSummary[] }> {
+    const [teamsResult, coreResult] = await Promise.all([
+      this.loadWithStatus(EVAL_ANALYTICS_KEY, () => this.loadEvalAnalyticsScaleTeams(), EVAL_ANALYTICS_TTL_MS),
+      this.getCoreDataset(),
+    ]);
+    return { scaleTeams: teamsResult.value as RawScaleTeam[], students: coreResult.data.students };
+  }
+
+  /**
+   * Fetches completed scale_teams for the last EVAL_ANALYTICS_WINDOW_DAYS days using
+   * the 42 API's `range[filled_at]` parameter (confirmed to be a real, filterable field
+   * on /v2/scale_teams - analogous to `range[updated_at]` used on projects_users).
+   */
+  private async loadEvalAnalyticsScaleTeams(): Promise<RawScaleTeam[]> {
+    const discovered = await this.getDiscoveredConfig();
+    const now = new Date();
+    const from = new Date(now.getTime() - EVAL_ANALYTICS_WINDOW_DAYS * DAY_MS);
+
+    const items = await this.apiClient.paginate<RawScaleTeam>(
+      '/v2/scale_teams',
+      {
+        'filter[campus_id]': discovered.campusId,
+        'range[filled_at]': `${from.toISOString()},${now.toISOString()}`,
+        sort: '-filled_at',
+      },
+      { pageSize: 100, maxPages: EVAL_ANALYTICS_MAX_PAGES },
+    );
+
+    const filled = items.filter((item) => item.filled_at !== null);
+    this.logger.info(
+      { count: filled.length, windowDays: EVAL_ANALYTICS_WINDOW_DAYS },
+      'Loaded evaluation analytics scale teams from 42 API',
+    );
+    return filled;
   }
 
   invalidateAll(): void {

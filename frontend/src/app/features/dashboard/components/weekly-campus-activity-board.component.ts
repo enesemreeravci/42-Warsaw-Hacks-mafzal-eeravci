@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import type { ChartConfiguration } from 'chart.js';
+import { BaseChartDirective } from 'ng2-charts';
 import type { WeeklyActivityStudent, WeeklyCampusActivityResponse } from '../../../core/models/api.models';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -14,23 +16,25 @@ interface RankedEntry {
   secondaryValue: string;
   secondaryLabel: string;
   averageLabel: string;
+  color: string;
+}
+
+interface PodiumSlot {
+  position: 'gold' | 'silver' | 'bronze';
+  label: string;
+  avatarSize: number;
+  entry: RankedEntry | null;
 }
 
 type BoardState = 'loading' | 'error' | 'empty' | 'ready';
 
 const VISIBLE_COUNT = 5;
+const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
-/**
- * One TV slide for the "Weekly Campus Activity" feature - either the "Most Campus Time" or
- * "Most Sessions Started" Top-5 ranking, trailing 7 days, Warsaw main-cursus students only.
- * Same component for both (via `metric`) since the layout is identical and only which stat
- * leads differs - keeps the ranking/formatting logic in one place instead of two near-duplicate
- * components. All aggregation already happened on the backend; this only formats for display.
- */
 @Component({
   selector: 'app-weekly-campus-activity-board',
   standalone: true,
-  imports: [AvatarComponent, EmptyStateComponent],
+  imports: [AvatarComponent, EmptyStateComponent, BaseChartDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="board">
@@ -56,30 +60,90 @@ const VISIBLE_COUNT = 5;
           <app-empty-state title="No valid campus sessions were found for the selected period." />
         }
         @default {
-          <ol class="board__list">
-            @for (entry of rankedEntries(); track entry.student.userId) {
-              <li class="board__row" [class.board__row--leader]="entry.rank === 1">
-                <span class="board__rank">{{ entry.rank }}</span>
-                <app-avatar [imageUrl]="entry.student.imageUrl" [name]="entry.student.displayName" [size]="64" />
-                <div class="board__name">
-                  <p class="board__display-name">{{ entry.student.displayName }}</p>
-                  <p class="board__login">&#64;{{ entry.student.login }}</p>
+          <div class="board__content">
+            <!-- Left: donut chart + campus-wide summary stats -->
+            <div class="board__overview">
+              <div class="board__chart-wrap">
+                <canvas
+                  baseChart
+                  role="img"
+                  aria-label="Share of campus activity among top students"
+                  [data]="chartData()"
+                  [options]="chartOptions"
+                  type="doughnut"
+                ></canvas>
+                <div class="board__chart-center">
+                  <span class="board__chart-total">{{ totalLabel() }}</span>
+                  <span class="board__chart-sub">{{ metric() === 'time' ? 'Top 5 time' : 'Top 5 sessions' }}</span>
                 </div>
-                <div class="board__stat board__stat--primary">
-                  <span class="board__stat-value">{{ entry.primaryValue }}</span>
-                  <span class="board__stat-label">{{ entry.primaryLabel }}</span>
+              </div>
+
+              <div class="board__summary">
+                @for (stat of summaryStats(); track stat.label) {
+                  <div class="summary-stat">
+                    <span class="summary-stat__value">{{ stat.value }}</span>
+                    <span class="summary-stat__label">{{ stat.label }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Right: Top 3 podium -->
+            <div class="board__podium">
+              @for (slot of podiumSlots(); track slot.position) {
+                @if (slot.entry; as entry) {
+                  <div
+                    class="podium-slot podium-slot--{{ slot.position }}"
+                    [style.--rank-color]="entry.color"
+                  >
+                    <div class="podium-slot__avatar-wrap">
+                      <app-avatar
+                        [imageUrl]="entry.student.imageUrl"
+                        [name]="entry.student.displayName"
+                        [size]="slot.avatarSize"
+                      />
+                      <span class="podium-slot__badge podium-slot__badge--{{ slot.position }}">{{ entry.rank }}</span>
+                    </div>
+                    <p class="podium-slot__name">{{ entry.student.displayName }}</p>
+                    <p class="podium-slot__login">&#64;{{ entry.student.login }}</p>
+                    <p class="podium-slot__primary">{{ entry.primaryValue }}</p>
+                    <p class="podium-slot__secondary">
+                      {{ entry.secondaryValue }}<span class="podium-slot__secondary-label"> {{ entry.secondaryLabel }}</span>
+                    </p>
+                    <p class="podium-slot__avg">Avg <strong>{{ entry.averageLabel }}</strong></p>
+                    <div class="podium-slot__platform">{{ slot.label }}</div>
+                  </div>
+                }
+              }
+            </div>
+          </div>
+
+          <!-- Ranks 4+ compact list -->
+          @if (listEntries().length > 0) {
+            <div class="board__rest">
+              <div class="board__rest-head">
+                <span>#</span>
+                <span></span>
+                <span>Name</span>
+                <span>{{ metric() === 'time' ? 'Campus Time' : 'Sessions' }}</span>
+                <span class="board__rest-hide">{{ metric() === 'time' ? 'Sessions' : 'Campus Time' }}</span>
+                <span class="board__rest-hide">Avg Session</span>
+              </div>
+              @for (entry of listEntries(); track entry.student.userId) {
+                <div class="board__rest-row" [style.--rank-color]="entry.color">
+                  <span class="board__rest-rank">{{ entry.rank }}</span>
+                  <app-avatar [imageUrl]="entry.student.imageUrl" [name]="entry.student.displayName" [size]="36" />
+                  <div class="board__rest-name">
+                    <p class="board__rest-display">{{ entry.student.displayName }}</p>
+                    <p class="board__rest-login">&#64;{{ entry.student.login }}</p>
+                  </div>
+                  <span class="board__rest-value board__rest-value--primary">{{ entry.primaryValue }}</span>
+                  <span class="board__rest-value board__rest-hide">{{ entry.secondaryValue }}</span>
+                  <span class="board__rest-value board__rest-hide">{{ entry.averageLabel }}</span>
                 </div>
-                <div class="board__stat">
-                  <span class="board__stat-value">{{ entry.secondaryValue }}</span>
-                  <span class="board__stat-label">{{ entry.secondaryLabel }}</span>
-                </div>
-                <div class="board__stat">
-                  <span class="board__stat-value">{{ entry.averageLabel }}</span>
-                  <span class="board__stat-label">Avg session</span>
-                </div>
-              </li>
-            }
-          </ol>
+              }
+            </div>
+          }
         }
       }
     </div>
@@ -88,7 +152,7 @@ const VISIBLE_COUNT = 5;
     .board {
       display: flex;
       flex-direction: column;
-      gap: var(--space-5);
+      gap: var(--space-4);
       height: 100%;
     }
 
@@ -100,13 +164,14 @@ const VISIBLE_COUNT = 5;
 
     .board__title {
       margin: 0;
-      font-size: 2.2rem;
+      font-size: 2rem;
       font-weight: 800;
+      letter-spacing: -0.01em;
     }
 
     .board__meta {
       margin: 0;
-      font-size: 1.1rem;
+      font-size: 0.9rem;
       color: var(--color-text-muted);
     }
 
@@ -117,117 +182,396 @@ const VISIBLE_COUNT = 5;
       border: 1px solid var(--color-warn);
       background: rgba(255, 176, 32, 0.08);
       color: var(--color-warn);
-      font-size: 1.05rem;
+      font-size: 0.95rem;
       font-weight: 700;
     }
 
-    .board__list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+    /* Main content: overview | podium ───────────────────────────── */
+    .board__content {
+      display: grid;
+      grid-template-columns: minmax(180px, 240px) 1fr;
+      gap: var(--space-5);
+      align-items: center;
+      flex: 1;
+    }
+
+    /* Overview: donut chart + summary stats ─────────────────────── */
+    .board__overview {
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-      flex: 1;
-      justify-content: center;
-    }
-
-    .board__row {
-      display: grid;
-      grid-template-columns: 4rem auto 1fr auto auto auto;
       align-items: center;
-      gap: var(--space-4);
-      padding: var(--space-4) var(--space-5);
+      padding: var(--space-4);
       border-radius: var(--radius-lg);
       border: 1px solid var(--glass-border);
       background: var(--glass-bg-elevated);
       backdrop-filter: blur(var(--glass-blur));
       -webkit-backdrop-filter: blur(var(--glass-blur));
+      align-self: stretch;
     }
 
-    .board__row--leader {
-      border-color: var(--color-accent);
-      box-shadow: 0 0 0 1px var(--color-accent), 0 0 28px -8px var(--color-accent);
+    .board__chart-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 168px;
+      aspect-ratio: 1;
     }
 
-    .board__rank {
-      font-size: 2.4rem;
+    .board__chart-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 10%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(52, 226, 196, 0.12), transparent 70%);
+      filter: blur(6px);
+      z-index: 0;
+    }
+
+    .board__chart-wrap canvas {
+      position: relative;
+      z-index: 1;
+    }
+
+    .board__chart-center {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      text-align: center;
+      gap: 2px;
+    }
+
+    .board__chart-total {
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: var(--color-text-primary);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .board__chart-sub {
+      font-size: 0.62rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+    }
+
+    .board__summary {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      width: 100%;
+    }
+
+    .summary-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.055);
+    }
+
+    .summary-stat__value {
+      font-size: 0.98rem;
+      font-weight: 800;
+      color: var(--color-accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .summary-stat__label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-text-muted);
+    }
+
+    /* Podium ──────────────────────────────────────────────────────── */
+    .board__podium {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: var(--space-3);
+    }
+
+    .podium-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-1);
+      flex: 1;
+      max-width: 200px;
+      min-width: 0;
+    }
+
+    .podium-slot__avatar-wrap {
+      position: relative;
+      display: inline-flex;
+      margin-bottom: var(--space-1);
+    }
+
+    .podium-slot--gold .podium-slot__avatar-wrap {
+      filter: drop-shadow(0 0 18px rgba(255, 215, 0, 0.65));
+    }
+
+    .podium-slot--silver .podium-slot__avatar-wrap {
+      filter: drop-shadow(0 0 10px rgba(176, 184, 200, 0.5));
+    }
+
+    .podium-slot--bronze .podium-slot__avatar-wrap {
+      filter: drop-shadow(0 0 9px rgba(205, 127, 50, 0.48));
+    }
+
+    .podium-slot__badge {
+      position: absolute;
+      bottom: -5px;
+      right: -5px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.76rem;
+      font-weight: 900;
+      color: #06080a;
+      border: 2px solid rgba(6, 8, 10, 0.85);
+    }
+
+    .podium-slot__badge--gold   { background: linear-gradient(135deg, #ffe55a, #ffa500); }
+    .podium-slot__badge--silver { background: linear-gradient(135deg, #dde3ee, #9ca3af); }
+    .podium-slot__badge--bronze { background: linear-gradient(135deg, #e8a05c, #a05a1a); }
+
+    .podium-slot__name {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .podium-slot--gold .podium-slot__name {
+      font-size: 1.02rem;
+    }
+
+    .podium-slot__login {
+      margin: 0;
+      font-size: 0.7rem;
+      color: var(--color-text-muted);
+      text-align: center;
+    }
+
+    .podium-slot__primary {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: var(--rank-color, var(--color-accent));
+      text-align: center;
+      line-height: 1;
+    }
+
+    .podium-slot--gold .podium-slot__primary {
+      font-size: 1.75rem;
+    }
+
+    .podium-slot__secondary {
+      margin: 0;
+      font-size: 0.76rem;
+      color: var(--color-text-secondary);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .podium-slot__secondary-label {
+      color: var(--color-text-muted);
+    }
+
+    .podium-slot__avg {
+      margin: 0;
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .podium-slot__avg strong {
+      color: var(--color-text-secondary);
+      font-weight: 700;
+    }
+
+    .podium-slot__platform {
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(6, 8, 10, 0.9);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      background: linear-gradient(
+        180deg,
+        var(--rank-color, #888) 0%,
+        color-mix(in srgb, var(--rank-color, #888) 60%, #000) 100%
+      );
+      margin-top: var(--space-2);
+    }
+
+    .podium-slot--gold   .podium-slot__platform { height: 64px; }
+    .podium-slot--silver .podium-slot__platform { height: 44px; }
+    .podium-slot--bronze .podium-slot__platform { height: 30px; }
+
+    /* TV mode — larger platform steps ──────────────────────────── */
+    :host-context(.dashboard--tv) .podium-slot--gold   .podium-slot__platform { height: 88px; }
+    :host-context(.dashboard--tv) .podium-slot--silver .podium-slot__platform { height: 60px; }
+    :host-context(.dashboard--tv) .podium-slot--bronze .podium-slot__platform { height: 40px; }
+
+    :host-context(.dashboard--tv) .board__title         { font-size: 2.4rem; }
+    :host-context(.dashboard--tv) .board__chart-total   { font-size: 1.7rem; }
+    :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }
+    :host-context(.dashboard--tv) .podium-slot--gold .podium-slot__primary { font-size: 2rem; }
+
+    /* Ranks 4+ list ─────────────────────────────────────────────── */
+    .board__rest {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg-elevated);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      overflow: hidden;
+    }
+
+    .board__rest-head,
+    .board__rest-row {
+      display: grid;
+      grid-template-columns: 2.2rem 2.4rem 1fr auto auto auto;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) var(--space-4);
+    }
+
+    .board__rest-head {
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+      border-bottom: 1px solid var(--glass-border);
+      padding-top: var(--space-3);
+      padding-bottom: var(--space-3);
+    }
+
+    .board__rest-row {
+      border-left: 3px solid var(--rank-color, transparent);
+      transition: background 150ms ease;
+    }
+
+    .board__rest-row:not(:last-child) {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .board__rest-row:hover {
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .board__rest-rank {
+      font-size: 1.05rem;
       font-weight: 900;
       text-align: center;
+      color: var(--color-text-muted);
+    }
+
+    .board__rest-name {
+      min-width: 0;
+    }
+
+    .board__rest-display {
+      margin: 0;
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .board__rest-login {
+      margin: 0;
+      font-size: 0.7rem;
+      color: var(--color-text-muted);
+    }
+
+    .board__rest-value {
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
       color: var(--color-text-secondary);
     }
 
-    .board__row--leader .board__rank {
+    .board__rest-value--primary {
       color: var(--color-accent);
-    }
-
-    .board__name {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .board__display-name {
-      margin: 0;
-      font-size: 1.4rem;
-      font-weight: 800;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .board__login {
-      margin: 0;
       font-size: 1rem;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .board__stat {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 2px;
-      min-width: 9rem;
-    }
-
-    .board__stat-value {
-      font-size: 1.6rem;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      color: var(--color-text-primary);
-    }
-
-    .board__stat--primary .board__stat-value {
-      font-size: 2rem;
-      color: var(--color-accent);
-    }
-
-    .board__stat-label {
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--color-text-muted);
-    }
-
-    @media (max-width: 1400px) {
-      .board__row {
-        grid-template-columns: 3.5rem auto 1fr auto;
+    /* Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 960px) {
+      .board__content {
+        grid-template-columns: 1fr;
       }
 
-      .board__stat:not(.board__stat--primary) {
+      .board__overview {
+        flex-direction: row;
+        align-self: auto;
+        align-items: flex-start;
+        gap: var(--space-5);
+      }
+
+      .board__chart-wrap {
+        max-width: 120px;
+        flex-shrink: 0;
+      }
+
+      .board__summary {
+        flex: 1;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-content: flex-start;
+      }
+
+      .summary-stat {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        flex: 1;
+        min-width: 80px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .board__rest-hide {
         display: none;
+      }
+
+      .board__rest-head,
+      .board__rest-row {
+        grid-template-columns: 2.2rem 2.4rem 1fr auto;
       }
     }
   `,
 })
 export class WeeklyCampusActivityBoardComponent {
   readonly activity = input<WeeklyCampusActivityResponse | null>(null);
-  /** Set when this specific field failed to load this cycle (DashboardStore.partialErrors()) -
-   * distinct from `activity` being null, which just as often means "still warming up". */
   readonly loadError = input<string | null>(null);
   readonly metric = input.required<WeeklyActivityMetric>();
   readonly title = input.required<string>();
@@ -246,8 +590,6 @@ export class WeeklyCampusActivityBoardComponent {
 
   protected readonly lastUpdatedLabel = computed(() => formatWarsawTime(this.activity()?.meta.lastUpdated));
 
-  /** Only shown when the backend explicitly fell back to a stale cached result - a normal,
-   * still-fresh cache hit never sets meta.source to 'cache' (see DataService.getWeeklyCampusActivity()). */
   protected readonly cacheBanner = computed(() => {
     const activity = this.activity();
     if (!activity || activity.meta.source !== 'cache') return null;
@@ -257,18 +599,81 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly rankedEntries = computed<RankedEntry[]>(() => {
     const activity = this.activity();
     if (!activity) return [];
-
     const students = this.metric() === 'time' ? activity.mostCampusTime : activity.mostSessionsStarted;
     const metric = this.metric();
-
     return students.slice(0, VISIBLE_COUNT).map((student, index) => ({
       student,
       rank: index + 1,
       primaryValue: metric === 'time' ? formatMinutesAsHoursAndMinutes(student.totalMinutes) : String(student.sessionCount),
       primaryLabel: metric === 'time' ? 'Campus time' : 'Sessions started',
       secondaryValue: metric === 'time' ? String(student.sessionCount) : formatMinutesAsHoursAndMinutes(student.totalMinutes),
-      secondaryLabel: metric === 'time' ? 'Sessions' : 'Campus time',
+      secondaryLabel: metric === 'time' ? 'sessions' : 'campus time',
       averageLabel: formatMinutesAsHoursAndMinutes(student.averageSessionMinutes),
+      color: RANK_COLORS[index] ?? '#888',
     }));
   });
+
+  protected readonly podiumSlots = computed<PodiumSlot[]>(() => {
+    const entries = this.rankedEntries();
+    return [
+      { position: 'silver', label: '2nd', avatarSize: 72, entry: entries[1] ?? null },
+      { position: 'gold',   label: '1st', avatarSize: 92, entry: entries[0] ?? null },
+      { position: 'bronze', label: '3rd', avatarSize: 62, entry: entries[2] ?? null },
+    ];
+  });
+
+  protected readonly listEntries = computed(() => this.rankedEntries().slice(3));
+
+  protected readonly totalLabel = computed(() => {
+    const entries = this.rankedEntries();
+    if (entries.length === 0) return '—';
+    if (this.metric() === 'time') {
+      return formatMinutesAsHoursAndMinutes(entries.reduce((s, e) => s + e.student.totalMinutes, 0));
+    }
+    return String(entries.reduce((s, e) => s + e.student.sessionCount, 0));
+  });
+
+  protected readonly summaryStats = computed(() => {
+    const activity = this.activity();
+    if (!activity) return [];
+    const { totalCampusMinutes, totalSessions } = activity.summary;
+    const avg = totalSessions > 0 ? totalCampusMinutes / totalSessions : 0;
+    return [
+      { value: formatMinutesAsHoursAndMinutes(totalCampusMinutes), label: 'All Campus Time' },
+      { value: String(totalSessions), label: 'All Sessions' },
+      { value: formatMinutesAsHoursAndMinutes(avg), label: 'Avg Session' },
+    ];
+  });
+
+  protected readonly chartData = computed<ChartConfiguration<'doughnut'>['data']>(() => {
+    const entries = this.rankedEntries();
+    const metric = this.metric();
+    return {
+      labels: entries.map((e) => e.student.displayName),
+      datasets: [
+        {
+          data: entries.map((e) => (metric === 'time' ? e.student.totalMinutes : e.student.sessionCount)),
+          backgroundColor: entries.map((e) => e.color),
+          borderColor: 'rgba(6, 8, 10, 0.7)',
+          borderWidth: 2,
+          hoverOffset: 8,
+        },
+      ],
+    };
+  });
+
+  protected readonly chartOptions: ChartConfiguration<'doughnut'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '65%',
+    animation: { duration: 600 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ${ctx.formattedValue}`,
+        },
+      },
+    },
+  };
 }

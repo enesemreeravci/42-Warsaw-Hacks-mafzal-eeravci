@@ -337,5 +337,194 @@ export interface RawScaleTeam {
   corrector?: { id: number; login: string } | null;
   correcteds?: Array<{ id: number; login: string }>;
   team?: { name?: string; project_id?: number } | null;
+  /** May embed the project name when the 42 API returns the nested scale object. */
+  scale?: { id?: number; project?: { id?: number; name?: string; slug?: string } } | null;
   [key: string]: unknown;
+}
+
+// ─── Evaluation Analytics ─────────────────────────────────────────────────────
+
+export interface EvaluationAnalyticsEntry {
+  id: number;
+  correctorLogin: string;
+  correctorDisplayName: string;
+  correctorImageUrl: string | null;
+  correctorLevel: number;
+  correctedLogin: string;
+  correctedDisplayName: string;
+  correctedImageUrl: string | null;
+  projectId: number | null;
+  projectName: string | null;
+  finalMark: number | null;
+  flagPositive: boolean | null;
+  filledAt: string;
+}
+
+export interface EvaluationHeatmapCell {
+  dayIndex: number;
+  dayLabel: string;
+  hour: number;
+  count: number;
+  topProject: string | null;
+  topEvaluator: string | null;
+}
+
+export interface EvaluationKPI {
+  evaluationsToday: number;
+  evaluationsThisWeek: number;
+  activeEvaluators: number;
+  studentsEvaluated: number;
+  mostEvaluatedProject: string | null;
+  averagePerDay: number;
+  historicalAvailable: false;
+}
+
+export interface EvaluationHeatmapSummary {
+  peakHour: number | null;
+  peakHourLabel: string | null;
+  busiestDay: string | null;
+  quietestDay: string | null;
+  averageDailyEvaluations: number;
+}
+
+export interface TopEvaluatorEntry {
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  evaluationCount: number;
+  uniqueStudentsEvaluated: number;
+  uniqueProjectsEvaluated: number;
+  lastEvaluationAt: string;
+}
+
+export interface MostEvaluatedStudentEntry {
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  evaluationsReceived: number;
+  uniqueProjects: number;
+  lastEvaluationAt: string;
+}
+
+export interface TopContributorEntry {
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  evaluationCount: number;
+  uniqueStudentsEvaluated: number;
+  uniqueProjectsEvaluated: number;
+  lastEvaluationAt: string;
+  contributionScore: number;
+  scoreComponents: {
+    evaluations: number;
+    uniqueStudents: number;
+    uniqueProjects: number;
+    activeDays: number;
+  };
+}
+
+export interface EvaluationProjectRanking {
+  projectName: string;
+  totalEvaluations: number;
+  uniqueStudents: number;
+  averageMark: number | null;
+}
+
+export interface EvaluationActivityPoint {
+  period: string;
+  count: number;
+}
+
+export interface EvaluationTimelineEntry {
+  id: number;
+  filledAt: string;
+  correctorLogin: string;
+  correctedLogin: string;
+  projectName: string | null;
+  finalMark: number | null;
+  flagPositive: boolean | null;
+}
+
+export interface EvaluationInsight {
+  type: 'busiest-day' | 'quietest-day' | 'peak-time' | 'top-evaluator';
+  label: string;
+  value: string;
+}
+
+export interface EvaluationAnalyticsResponse {
+  generatedAt: string;
+  timezone: string;
+  filters: { range: string; from: string; to: string };
+  kpi: EvaluationKPI;
+  heatmap: EvaluationHeatmapCell[];
+  heatmapSummary: EvaluationHeatmapSummary;
+  activitySeries: EvaluationActivityPoint[];
+  topEvaluators: TopEvaluatorEntry[];
+  mostEvaluatedStudents: MostEvaluatedStudentEntry[];
+  topContributors: TopContributorEntry[];
+  projectRankings: EvaluationProjectRanking[];
+  timeline: EvaluationTimelineEntry[];
+  insights: EvaluationInsight[];
+  meta: {
+    totalEvaluations: number;
+    dataWindowDays: number;
+    historicalAvailable: false;
+    note: string;
+    source: '42-api' | 'cache';
+  };
+}
+
+// ─── Black Hole Status ─────────────────────────────────────────────────────────
+
+export type BlackHoleStatusCategory =
+  | 'critical'
+  | 'urgent'
+  | 'warning'
+  | 'upcoming'
+  | 'safe'
+  | 'recentlyBlackHoled'
+  | 'historical';
+
+export interface BlackHoleUpcomingEntry {
+  id: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  blackholedAt: string;
+  daysRemaining: number;
+  status: BlackHoleStatusCategory;
+}
+
+export interface BlackHoleRecentEntry {
+  id: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  blackholedAt: string;
+  daysSince: number;
+}
+
+export interface BlackHoleSummary {
+  criticalCount: number;
+  urgentCount: number;
+  atRiskIn14Days: number;
+  upcomingIn30Days: number;
+  recentlyBlackHoledCount: number;
+  closestBlackHoleDate: string | null;
+}
+
+export interface BlackHoleStatusResponse {
+  generatedAt: string;
+  timezone: string;
+  cursusId: number;
+  filters: { upcomingDays: number; recentDays: number };
+  summary: BlackHoleSummary;
+  upcoming: BlackHoleUpcomingEntry[];
+  recentlyBlackHoled: BlackHoleRecentEntry[];
+  excludedCount: number;
 }

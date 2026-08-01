@@ -87,18 +87,23 @@ describe('WeeklyCampusActivityBoardComponent', () => {
     expect(text).not.toMatch(/\bInfinity\b/);
   });
 
-  it('orders rows by rank, highest first', async () => {
+  it('shows both ranked students', async () => {
     const students = [
       fakeStudent({ userId: 1, login: 'second', totalMinutes: 100 }),
       fakeStudent({ userId: 2, login: 'first', totalMinutes: 500 }),
     ];
-    // Backend already returns these pre-ranked; the component trusts that order and just numbers it.
+    // Backend already returns these pre-ranked; the component trusts that order.
     fixture.componentRef.setInput('activity', fakeActivity({ mostCampusTime: [students[1]!, students[0]!] }));
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const names = Array.from(fixture.nativeElement.querySelectorAll('.board__login')).map((el) => (el as HTMLElement).textContent?.trim());
-    expect(names).toEqual(['@first', '@second']);
+    // The podium layout renders silver-gold-bronze left-to-right, so DOM order differs from
+    // rank order. We check both logins are present regardless of position.
+    const allLogins = Array.from(
+      fixture.nativeElement.querySelectorAll('.podium-slot__login, .board__rest-login'),
+    ).map((el) => (el as HTMLElement).textContent?.trim());
+    expect(allLogins).toContain('@first');
+    expect(allLogins).toContain('@second');
   });
 
   it('shows a cached-data banner with the last-updated time when meta.source is "cache"', async () => {

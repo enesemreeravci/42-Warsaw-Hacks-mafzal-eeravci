@@ -4,8 +4,10 @@ import express, { type Express } from 'express';
 import helmet from 'helmet';
 import type { AppContext } from './appContext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { blackholeRouter } from './routes/blackhole.js';
 import { configRouter } from './routes/config.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { evaluationsRouter } from './routes/evaluations.js';
 import { healthRouter } from './routes/health.js';
 import { projectsRouter } from './routes/projects.js';
 import { statusRouter } from './routes/status.js';
@@ -59,6 +61,8 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api', studentsRouter(ctx));
   app.use('/api', projectsRouter(ctx));
   app.use('/api', statusRouter(ctx));
+  app.use('/api', evaluationsRouter(ctx));
+  app.use('/api', blackholeRouter(ctx));
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler(ctx.logger));

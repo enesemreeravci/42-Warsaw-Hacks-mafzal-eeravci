@@ -4,11 +4,14 @@ import { Observable, map } from 'rxjs';
 import type {
   ApiEnvelope,
   AppConfigResponse,
+  BlackHoleStatusResponse,
   CampusEvent,
   CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
+  EvaluationAnalyticsResponse,
   EvaluationEntry,
+  EvaluationRangeOption,
   Ft42Status,
   HealthResponse,
   LivePulseResponse,
@@ -121,6 +124,16 @@ export class ApiService {
 
   getFt42Status(): Observable<ApiEnvelope<Ft42Status>> {
     return this.http.get<ApiEnvelope<Ft42Status>>(`${this.base}/status/42`);
+  }
+
+  getEvaluationAnalytics(range: EvaluationRangeOption = 'last7Days'): Observable<ApiEnvelope<EvaluationAnalyticsResponse>> {
+    const params = new HttpParams().set('range', range);
+    return this.http.get<ApiEnvelope<EvaluationAnalyticsResponse>>(`${this.base}/evaluations/analytics`, { params });
+  }
+
+  getBlackHoleStatus(upcomingDays = 30, recentDays = 30): Observable<ApiEnvelope<BlackHoleStatusResponse>> {
+    const params = new HttpParams().set('upcomingDays', upcomingDays).set('recentDays', recentDays);
+    return this.http.get<ApiEnvelope<BlackHoleStatusResponse>>(`${this.base}/blackhole/status`, { params });
   }
 }
 
