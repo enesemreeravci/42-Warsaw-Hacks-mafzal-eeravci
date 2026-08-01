@@ -42,7 +42,9 @@ export class App {
 
   protected readonly sidebarExpanded = signal(false);
   private sidebarCollapseTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private static readonly SIDEBAR_AUTO_HIDE_MS = 5000;
+  /** Short debounce, not a "give the user time to come back" delay - just enough to absorb the
+   * mouse briefly crossing the sidebar's edge without collapsing, while still feeling instant. */
+  private static readonly SIDEBAR_AUTO_HIDE_MS = 200;
 
   constructor() {
     this.store.init();

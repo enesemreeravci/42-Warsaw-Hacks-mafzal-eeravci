@@ -50,7 +50,7 @@ cd 42-warsaw-progress-insight
 npm install
 ```
 
-This installs the root, `frontend/`, and `server/` workspaces in one pass (npm workspaces).
+This installs the root, `frontend/`, and `backend/` workspaces in one pass (npm workspaces).
 
 ## Environment setup
 
@@ -115,11 +115,11 @@ Angular app's `/api/*` calls reach the backend) concurrently.
 npm run build
 ```
 
-Builds the backend (`server/dist`) and the Angular production bundle
+Builds the backend (`backend/dist`) and the Angular production bundle
 (`frontend/dist/frontend/browser`).
 
 ```bash
-npm run start --workspace server   # after npm run build
+npm run start --workspace backend   # after npm run build
 ```
 
 Serve `frontend/dist/frontend/browser` with any static file server / reverse proxy that
@@ -163,7 +163,7 @@ Frontend tests cover: the app shell component, a presentational component (`Stat
 
 All responses use a consistent envelope: `{ data, meta: { generatedAt, cached, staleData? } }`
 on success, `{ error: { code, message } }` on failure. Full endpoint list, query parameters,
-and semantics are documented inline in `server/src/routes/*.ts`; a summary:
+and semantics are documented inline in `backend/src/routes/*.ts`; a summary:
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -201,7 +201,7 @@ and semantics are documented inline in `server/src/routes/*.ts`; a summary:
 | Dashboard shows "Stale data" badge | 42 API temporarily unreachable | Expected behavior — last good data is kept; check `/api/status/42` |
 | Frontend can't reach the backend in dev | `ng serve` not using the proxy | Use `npm run dev` (or `npm run start --workspace frontend`, which passes `--proxy-config`) |
 | "Campus/Cursus could not be found" at startup | `FT42_CAMPUS_NAME`/`FT42_CURSUS_NAME` doesn't match any 42 API record | Check spelling, or set `FT42_CAMPUS_ID`/`FT42_CURSUS_ID` directly |
-| Docker frontend can't reach the backend | Compose network/service name mismatch | Confirm both services are defined in the same `docker-compose.yml` (service name `server` is hard-coded in `frontend/nginx.conf`) |
+| Docker frontend can't reach the backend | Compose network/service name mismatch | Confirm both services are defined in the same `docker-compose.yml` (service name `backend` is hard-coded in `frontend/nginx.conf`) |
 
 ## Security notes
 

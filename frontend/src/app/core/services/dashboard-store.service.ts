@@ -20,6 +20,11 @@ import { VisibilityService } from './visibility.service';
 
 const DEFAULT_AUTO_REFRESH_SECONDS = 300;
 const STATUS_POLL_MS = 60_000;
+/** While the backend is still warming its cache (cold start / fresh restart, see
+ * ApiEnvelope.meta.warming), poll far more often than the normal auto-refresh interval so the
+ * dashboard swaps in real data within seconds of the first background-refresh cycle finishing,
+ * instead of sitting on an empty placeholder for up to DEFAULT_AUTO_REFRESH_SECONDS. */
+const WARMUP_RETRY_SECONDS = 5;
 
 export interface DashboardData {
   summary: DashboardSummary | null;
@@ -60,6 +65,7 @@ export class DashboardStore {
   private readonly refreshingSignal = signal(false);
   private readonly errorSignal = signal<NormalizedApiError | null>(null);
   private readonly staleSignal = signal(false);
+  private readonly warmingSignal = signal(false);
   private readonly lastSuccessfulUpdateSignal = signal<Date | null>(null);
   private readonly lastFailedUpdateSignal = signal<Date | null>(null);
   private readonly autoRefreshEnabledSignal = signal(true);
@@ -79,6 +85,7 @@ export class DashboardStore {
   readonly refreshing = this.refreshingSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
   readonly stale = this.staleSignal.asReadonly();
+  readonly warming = this.warmingSignal.asReadonly();
   readonly lastSuccessfulUpdate = this.lastSuccessfulUpdateSignal.asReadonly();
   readonly lastFailedUpdate = this.lastFailedUpdateSignal.asReadonly();
   readonly autoRefreshEnabled = this.autoRefreshEnabledSignal.asReadonly();
@@ -92,6 +99,24 @@ export class DashboardStore {
   private readonly manualRefresh$ = new Subject<void>();
   private isFetching = false;
   private initialized = false;
+  /** True once a load cycle has completed with real (non-warming) data at least once. Distinct
+   * from `dataSignal().summary !== null`: a warming cycle already populates `summary` with a
+   * structurally valid but all-zero placeholder, so that check alone can't tell "first load still
+   * warming" apart from "genuinely loaded" - which would otherwise flip the skeleton off after the
+   * very first empty warmup response instead of keeping it up through every retry. */
+  private hasLoadedRealData = false;
+  /** OR'd across every field in the current load cycle (reset per loadAll()) - a coalition or
+   * evaluations response can still be warming after summary already has real data, since the
+   * backend's core-refresh cycle populates its caches sequentially (roster, then coalitions,
+   * then evaluations). Drives the fast warmup retry cadence and the header badge, so a
+   * lagging field keeps polling instead of waiting out the full auto-refresh interval. */
+  private cycleWarming = false;
+  /** Specifically summary's warming flag - summary is the fast/core field, so this alone gates
+   * the full-page loading skeleton. Gating it on `cycleWarming` instead (every field) made the
+   * whole dashboard sit on the skeleton until the *slowest* field (evaluations, which can page
+   * through a couple thousand mostly-unfilled scale_teams records) finished, even though summary
+   * and most other cards were already long ready - exactly the "stuck for two minutes" report. */
+  private summaryWarming = false;
 
   init(): void {
     if (this.initialized) return;
@@ -205,6 +230,10 @@ export class DashboardStore {
             delete next[field];
             return next;
           });
+          if ((value as { meta?: { warming?: boolean } }).meta?.warming) {
+            this.cycleWarming = true;
+            if (field === 'summary') this.summaryWarming = true;
+          }
         }
 
         onSettled(value !== null);
@@ -216,13 +245,14 @@ export class DashboardStore {
     this.isFetching = true;
     const loadId = this.loadCycle.startNewCycle();
 
-    const hadDataBefore = this.dataSignal().summary !== null;
-    if (hadDataBefore) {
+    if (this.hasLoadedRealData) {
       this.refreshingSignal.set(true);
     } else {
       this.loadingSignal.set(true);
     }
 
+    this.cycleWarming = false;
+    this.summaryWarming = false;
     const days = this.selectedPeriodDaysSignal();
 
     let remaining = 9;
@@ -234,8 +264,22 @@ export class DashboardStore {
       if (remaining > 0) return;
 
       this.isFetching = false;
-      this.loadingSignal.set(false);
       this.refreshingSignal.set(false);
+
+      // The backend's first-ever cache load can legitimately take a while (large roster, 42 API
+      // rate limits). Until summary lands, its "successful" response is a structurally valid but
+      // empty placeholder - keep showing the loading skeleton for that. Slower fields (coalitions,
+      // evaluations) don't hold the skeleton up once summary is ready, but still retry every
+      // WARMUP_RETRY_SECONDS on their own instead of waiting the full auto-refresh interval.
+      const stillWarming = this.cycleWarming;
+      this.warmingSignal.set(stillWarming);
+      if (!this.summaryWarming && anySucceeded) {
+        this.hasLoadedRealData = true;
+      }
+      this.loadingSignal.set(this.summaryWarming && !this.hasLoadedRealData);
+      if (stillWarming) {
+        this.countdownSecondsSignal.set(WARMUP_RETRY_SECONDS);
+      }
 
       if (anySucceeded) {
         this.errorSignal.set(null);
@@ -250,7 +294,7 @@ export class DashboardStore {
     };
 
     this.loadField(loadId, 'summary', this.api.getDashboardSummary(), (data, envelope) => {
-      this.staleSignal.set(Boolean(envelope.meta.staleData));
+      this.staleSignal.set(Boolean(envelope.meta.staleData) && !envelope.meta.warming);
       return { ...data, summary: envelope.data };
     }, onSettled);
     this.loadField(loadId, 'recentCompletions', this.api.getRecentCompletions(7, 20), (data, envelope) => ({

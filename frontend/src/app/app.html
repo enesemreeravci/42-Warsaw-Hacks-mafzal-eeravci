@@ -13,14 +13,6 @@
           <mat-icon>dashboard</mat-icon>
           <span class="sidebar__label">Dashboard</span>
         </a>
-        <a class="sidebar__link" routerLink="/students" routerLinkActive="active" matTooltip="Students" matTooltipPosition="right">
-          <mat-icon>groups</mat-icon>
-          <span class="sidebar__label">Students</span>
-        </a>
-        <a class="sidebar__link" routerLink="/projects" routerLinkActive="active" matTooltip="Projects" matTooltipPosition="right">
-          <mat-icon>folder_open</mat-icon>
-          <span class="sidebar__label">Projects</span>
-        </a>
         <a class="sidebar__link" routerLink="/about" routerLinkActive="active" matTooltip="About" matTooltipPosition="right">
           <mat-icon>info</mat-icon>
           <span class="sidebar__label">About</span>
@@ -38,7 +30,9 @@
       </div>
 
       <div class="app-header__status">
-        @if (store.stale()) {
+        @if (store.warming()) {
+          <span class="badge badge--warming" matTooltip="First-time data load in progress - this can take a minute or two for a large campus roster.">Warming up&hellip;</span>
+        } @else if (store.stale()) {
           <span class="badge badge--stale" matTooltip="Showing the last successfully cached data while the 42 API is unreachable.">Stale data</span>
         }
         <span

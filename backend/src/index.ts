@@ -7,7 +7,7 @@ import { ConfigValidationError, loadConfig } from './config/env.js';
 import { createLogger } from './config/logger.js';
 
 // Load the monorepo-root .env regardless of the process's working directory -
-// `npm run dev --workspace server` runs with cwd=server/, not the repo root.
+// `npm run dev --workspace backend` runs with cwd=backend/, not the repo root.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 

@@ -1,10 +1,6 @@
 <div class="dashboard" [class.dashboard--tv]="tvMode.enabled()">
   <app-narrator-robot [cue]="activeNarratorCue()" [refreshing]="store.refreshing()" (refresh)="store.refreshNow()" />
 
-  @if (!tvMode.enabled()) {
-    <app-assistant-widget />
-  }
-
   @if (store.error() && !store.data().summary) {
     <app-error-state
       title="Couldn't load the dashboard"

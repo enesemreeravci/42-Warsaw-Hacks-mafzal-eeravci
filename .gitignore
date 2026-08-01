@@ -12,7 +12,7 @@ dist/
 **/dist/
 frontend/.angular/
 frontend/dist/
-server/dist/
+backend/dist/
 *.tsbuildinfo
 
 # Logs

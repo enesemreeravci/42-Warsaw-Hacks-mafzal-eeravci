@@ -139,7 +139,7 @@ export class TopProjectsListComponent {
       const successPct = Math.round(metric.successRate);
       return {
         metric,
-        badge: MEDALS[index] ?? `#${index + 1}`,
+        badge: MEDALS[index] ?? `${index + 1}`,
         successPct,
         chartData: {
           labels: ['Passed', 'Failed'],

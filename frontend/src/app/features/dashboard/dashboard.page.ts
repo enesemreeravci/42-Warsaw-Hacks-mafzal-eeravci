@@ -8,7 +8,6 @@ import { VisibilityService } from '../../core/services/visibility.service';
 import { ErrorStateComponent } from '../../shared/components/error-state/error-state.component';
 import { LoadingSkeletonComponent } from '../../shared/components/loading-skeleton/loading-skeleton.component';
 import { AchievementSpotlightComponent } from './components/achievement-spotlight.component';
-import { AssistantWidgetComponent } from './components/assistant-widget.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
 import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
 import { CompletionTrendChartComponent } from './components/completion-trend-chart.component';
@@ -58,7 +57,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     MatButtonToggleModule,
     ErrorStateComponent,
     LoadingSkeletonComponent,
-    AssistantWidgetComponent,
     CelebrationCarouselComponent,
     CompletionTrendChartComponent,
     DashboardAnalyticsComponent,
@@ -92,6 +90,14 @@ export class DashboardPage {
   );
 
   private readonly narratorIndex = signal(0);
+  /** True once the mouse has been still for MOUSE_IDLE_MS. The narrator's auto-rotation only
+   * advances while this is true - a user actively moving the mouse around the dashboard is
+   * presumably looking at something specific, and having panels highlight themselves out from
+   * under their attention every few seconds is disorienting. It resumes on its own once they
+   * stop moving the mouse, so a genuinely idle/kiosk screen still cycles through panels. */
+  private readonly mouseIdle = signal(true);
+  private mouseIdleTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private static readonly MOUSE_IDLE_MS = 1500;
 
   /** The cue the narrator robot is currently showing. A panel the user is hovering (registered
    * via `appNarratorTarget`, see NarratorTargetRegistry) takes priority over the automatic
@@ -126,10 +132,28 @@ export class DashboardPage {
 
     timer(NARRATOR_ROTATION_MS, NARRATOR_ROTATION_MS)
       .pipe(
-        filter(() => !this.tvMode.enabled() && !this.visibility.hidden()),
+        filter(() => !this.tvMode.enabled() && !this.visibility.hidden() && this.mouseIdle()),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.narratorIndex.update((i) => i + 1));
+
+    this.watchMouseIdle();
+  }
+
+  private watchMouseIdle(): void {
+    if (typeof window === 'undefined') return;
+
+    const onActivity = () => {
+      this.mouseIdle.set(false);
+      if (this.mouseIdleTimeoutId !== null) clearTimeout(this.mouseIdleTimeoutId);
+      this.mouseIdleTimeoutId = setTimeout(() => this.mouseIdle.set(true), DashboardPage.MOUSE_IDLE_MS);
+    };
+
+    window.addEventListener('mousemove', onActivity, { passive: true });
+    this.destroyRef.onDestroy(() => {
+      window.removeEventListener('mousemove', onActivity);
+      if (this.mouseIdleTimeoutId !== null) clearTimeout(this.mouseIdleTimeoutId);
+    });
   }
 
   private secondsInSection = 0;

@@ -167,7 +167,8 @@ export function dashboardRouter(ctx: AppContext): Router {
   router.get(
     '/dashboard/evaluations',
     asyncHandler(async (req, res) => {
-      const limit = clampInt(req.query.limit, 15, 1, 50);
+      // Upper bound matches loadFilledScaleTeams()'s targetFilled in dataService.ts - keep in sync.
+      const limit = clampInt(req.query.limit, 15, 1, 20);
       const evaluations = ctx.dataService.getEvaluationsSnapshot(limit);
       if (evaluations) {
         sendData(res, evaluations, { cached: true });

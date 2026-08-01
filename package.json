@@ -5,14 +5,14 @@
   "description": "TV-friendly dashboard for the 42 Warsaw Hacks: Learning Progress Insight hackathon",
   "workspaces": [
     "frontend",
-    "server"
+    "backend"
   ],
   "scripts": {
     "dev": "cmd /c scripts\\dev.cmd",
-    "build": "npm run build --workspace server && npm run build --workspace frontend",
-    "test": "npm run test --workspace server && npm run test --workspace frontend",
-    "lint": "npm run lint --workspace server && npm run lint --workspace frontend",
-    "postinstall": "echo 'Root install complete. Copy .env.example to .env before running the server.'"
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
+    "postinstall": "echo 'Root install complete. Copy .env.example to .env before running the backend.'"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

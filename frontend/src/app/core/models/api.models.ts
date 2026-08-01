@@ -210,6 +210,9 @@ export interface ApiEnvelope<T> {
     generatedAt: string;
     cached: boolean;
     staleData?: boolean;
+    /** True while the backend is still completing its first-ever cache load (cold start) -
+     * `data` is a structurally valid but empty placeholder, not a real "0" result. */
+    warming?: boolean;
   };
 }
 

@@ -97,7 +97,7 @@ export class BackgroundRefreshService {
     try {
       await this.dataService.getCoreDataset();
       await this.dataService.getCoalitions();
-      await this.dataService.getRecentEvaluations(50); // headroom above the largest `limit` any route accepts
+      await this.dataService.getRecentEvaluations(20); // matches the largest `limit` GET /dashboard/evaluations accepts
       this.lastCoreSuccessAt = new Date().toISOString();
       this.lastCoreError = null;
       this.logger.info({ durationMs: Date.now() - start }, 'Background refresh: core cache warmed');

@@ -1,7 +1,7 @@
 services:
-  server:
+  backend:
     build:
-      context: ./server
+      context: ./backend
     env_file:
       - .env
     environment:
@@ -15,7 +15,7 @@ services:
     build:
       context: ./frontend
     depends_on:
-      - server
+      - backend
     ports:
       - '4200:8080'
     restart: unless-stopped

@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.logs"
 mkdir -p "$LOG_DIR"
 
-SERVER_LOG="$LOG_DIR/server.log"
+BACKEND_LOG="$LOG_DIR/backend.log"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
 
 cleanup() {
-  if [[ -n "${SERVER_PID:-}" ]]; then
-    kill "$SERVER_PID" 2>/dev/null || true
+  if [[ -n "${BACKEND_PID:-}" ]]; then
+    kill "$BACKEND_PID" 2>/dev/null || true
   fi
   if [[ -n "${FRONTEND_PID:-}" ]]; then
     kill "$FRONTEND_PID" 2>/dev/null || true
@@ -44,12 +44,12 @@ terminate_port() {
 terminate_port 3000
 terminate_port 4200
 
-echo "Starting server on port 3000..."
+echo "Starting backend on port 3000..."
 (
   cd "$ROOT_DIR"
-  npm run dev --workspace server
-) >"$SERVER_LOG" 2>&1 &
-SERVER_PID=$!
+  npm run dev --workspace backend
+) >"$BACKEND_LOG" 2>&1 &
+BACKEND_PID=$!
 
 echo "Starting frontend on port 4200..."
 (
@@ -58,9 +58,9 @@ echo "Starting frontend on port 4200..."
 ) >"$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
-echo "Server PID: $SERVER_PID"
+echo "Backend PID: $BACKEND_PID"
 echo "Frontend PID: $FRONTEND_PID"
-echo "Logs: $SERVER_LOG"
+echo "Logs: $BACKEND_LOG"
 echo "$FRONTEND_LOG"
 
-wait "$SERVER_PID" "$FRONTEND_PID"
+wait "$BACKEND_PID" "$FRONTEND_PID"

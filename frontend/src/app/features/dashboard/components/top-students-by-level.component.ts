@@ -27,6 +27,11 @@ import type { StudentRanking } from '../../../core/models/api.models';
           </li>
         }
       </ol>
+
+      <a class="student-rank__view-all" [routerLink]="['/students']" [queryParams]="{ sort: 'level', direction: 'desc' }">
+        View full ranking
+        <span aria-hidden="true">&rarr;</span>
+      </a>
     }
   `,
   styles: `
@@ -75,6 +80,25 @@ import type { StudentRanking } from '../../../core/models/api.models';
       color: var(--color-text-muted);
       font-variant-numeric: tabular-nums;
       font-size: 0.9rem;
+    }
+
+    .student-rank__view-all {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-1);
+      margin-top: var(--space-2);
+      padding: var(--space-2);
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--color-accent);
+      transition: background var(--transition-standard);
+
+      &:hover {
+        background: var(--color-bg-card-hover);
+      }
     }
   `,
 })

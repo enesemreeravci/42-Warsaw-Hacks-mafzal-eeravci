@@ -313,8 +313,12 @@ export class DataService {
   private async loadFilledScaleTeams(): Promise<RawScaleTeam[]> {
     const discovered = await this.getDiscoveredConfig();
     const filled: RawScaleTeam[] = [];
-    const targetFilled = 50; // headroom above the largest `limit` any route accepts
-    const maxPages = 20;
+    // Headroom above the largest `limit` GET /dashboard/evaluations accepts (see dashboard.ts) -
+    // keep the two in sync. Pages of mostly-unfilled scale_teams (see comment above) make this
+    // loop one of the slowest parts of the cold-start warmup cycle, so both are kept as small as
+    // the route's contract allows rather than padded further "just in case".
+    const targetFilled = 20;
+    const maxPages = 10;
 
     for (let page = 1; page <= maxPages; page += 1) {
       const items = await this.apiClient.get<RawScaleTeam[]>('/v2/scale_teams', {
