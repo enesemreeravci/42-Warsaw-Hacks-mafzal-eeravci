@@ -52,6 +52,11 @@ export interface DashboardSummary {
   completionsLast7Days: number;
   completionsLast30Days: number;
   totalValidatedCompletions: number;
+  /** Distinct projects with at least one finished attempt in the loaded window - not the full
+   * curriculum catalog, just what this cohort has actually engaged with. */
+  totalEnrolledProjects: number;
+  /** Validated / finished attempts, as a percentage, across the same window. */
+  averageCompletionRate: number;
   latestCompletionAt: string | null;
   generatedAt: string;
   cacheStatus: CacheStatus;
@@ -144,6 +149,17 @@ export interface CoalitionTopContributor {
   score: number;
 }
 
+/** The campus's top scorer within a given coalition over the trailing 7 days - `weeklyPoints`
+ * is the same "sum of final marks on validated completions" proxy metric as the Weekly XP race
+ * (see livePulse.ts computeWeeklyXpByStudent), not official 42 XP. */
+export interface CoalitionWeeklyContributor {
+  id: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  weeklyPoints: number;
+}
+
 /** A coalition's standing on the campus leaderboard. */
 export interface CoalitionStanding {
   id: number;
@@ -155,6 +171,9 @@ export interface CoalitionStanding {
   rank: number;
   /** Null if no campus roster member could be matched against this coalition's membership. */
   topContributor: CoalitionTopContributor | null;
+  /** Null if no campus roster member of this coalition had any validated completions in the
+   * trailing 7 days. */
+  weeklyTopContributor: CoalitionWeeklyContributor | null;
 }
 
 /**

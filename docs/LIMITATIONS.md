@@ -115,6 +115,15 @@ it's listed here.
   `sort=-score` on this endpoint 400s ("the score field is not sortable"), so results are
   batched (100 user IDs per request) and the max is taken client-side rather than requested
   pre-sorted.
+- **The coalition leaderboard's "This Week" contributor is the same `weeklyXp` proxy metric as
+  the Weekly XP race above, not a `coalitions_users` field.** `coalitions_users.score` is an
+  all-time cumulative value with no time window of its own, so there is no live endpoint for
+  "who scored the most for their coalition this week." Instead, each roster member's coalition
+  membership (from `coalitions_users`) is cross-referenced against their own validated
+  completions in the trailing 7 days (`computeWeeklyXpByStudent` in `livePulse.ts`, shared with
+  the XP race) and the highest scorer per coalition is surfaced as `weeklyTopContributor`. A
+  member with zero validated completions this week is never selected, even if they're the
+  coalition's all-time leader.
 - **`scale_teams`'s `filter[campus_id]` scoping is not verified to the same standard as the
   other filters above.** It returns `HTTP 200` with plausible-looking data for
   `filter[campus_id]=67`, but - unlike `cursus_users`/`projects_users`/`blocs` - this was not

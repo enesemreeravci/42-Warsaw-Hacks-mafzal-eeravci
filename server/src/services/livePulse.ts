@@ -30,15 +30,16 @@ export function buildActiveNow(students: StudentSummary[], referenceDate: Date, 
 }
 
 /**
- * Weekly XP leaderboard. `weeklyXp` is a proxy metric - the sum of final marks on validated
- * completions in the trailing window - not official 42 XP/transactions data (see docs/LIMITATIONS.md).
+ * Sums final marks on validated completions in the trailing `days` window, per student. This is
+ * the proxy metric underlying both the "Weekly XP race" leaderboard below and the coalition
+ * leaderboard's weekly top-contributor spotlight (see coalitions.ts buildWeeklyTopContributors) -
+ * not official 42 XP/transactions data (see docs/LIMITATIONS.md).
  */
-export function buildXpLeaderboard(
+export function computeWeeklyXpByStudent(
   completions: ProjectCompletion[],
   days: number,
   referenceDate: Date,
-  limit: number,
-): XpLeaderboardEntry[] {
+): Map<number, XpLeaderboardEntry> {
   const since = new Date(referenceDate.getTime() - days * DAY_MS);
   const byStudent = new Map<number, XpLeaderboardEntry>();
 
@@ -60,6 +61,17 @@ export function buildXpLeaderboard(
     }
   }
 
+  return byStudent;
+}
+
+/** Weekly XP leaderboard - see computeWeeklyXpByStudent() for what `weeklyXp` means. */
+export function buildXpLeaderboard(
+  completions: ProjectCompletion[],
+  days: number,
+  referenceDate: Date,
+  limit: number,
+): XpLeaderboardEntry[] {
+  const byStudent = computeWeeklyXpByStudent(completions, days, referenceDate);
   return Array.from(byStudent.values())
     .sort((a, b) => b.weeklyXp - a.weeklyXp)
     .slice(0, limit);

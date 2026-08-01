@@ -15,7 +15,7 @@ import type {
   StudentSummary,
 } from '../models/types.js';
 import { TtlCache, type CacheGetResult } from '../utils/cache.js';
-import { buildCoalitionStandings, buildTopContributors } from './coalitions.js';
+import { buildCoalitionStandings, buildTopContributors, buildWeeklyTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
@@ -49,6 +49,9 @@ const PROJECTS_KEY = 'projects';
 const COALITIONS_KEY = 'coalitions';
 const SCALE_TEAMS_KEY = 'scale-teams';
 const SCALE_TEAMS_PAGE_SIZE = 100;
+// Matches the "Weekly XP race" window (dashboard.ts buildXpLeaderboard) so the coalition
+// leaderboard's weekly spotlight and the TV-mode XP race agree on what "this week" means.
+const WEEKLY_TOP_CONTRIBUTOR_DAYS = 7;
 
 // /v2/projects_users for a campus/cursus this size is 100+ pages of full history (confirmed
 // live: still returning full pages at page 100). Every *dashboard* route only ever displays a
@@ -252,8 +255,15 @@ export class DataService {
       const studentsById = new Map(data.students.map((s) => [s.id, s]));
       const coalitionUsers = await this.loadCoalitionUsersForRoster(data.students.map((s) => s.id));
       const topContributors = buildTopContributors(coalitionUsers, studentsById);
+      const weeklyTopContributors = buildWeeklyTopContributors(
+        coalitionUsers,
+        studentsById,
+        data.completions,
+        WEEKLY_TOP_CONTRIBUTOR_DAYS,
+        new Date(),
+      );
 
-      return buildCoalitionStandings(raw, topContributors);
+      return buildCoalitionStandings(raw, topContributors, weeklyTopContributors);
     });
     return result.value as CoalitionStanding[];
   }

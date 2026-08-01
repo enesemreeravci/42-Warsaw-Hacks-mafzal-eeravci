@@ -34,24 +34,14 @@
     }
 
     @if (!tvMode.enabled()) {
-      <section class="section" aria-labelledby="summary-heading">
-        <h2 id="summary-heading" class="visually-hidden">Community summary</h2>
-        <div
-          class="summary-grid"
-          [appNarratorTarget]="'summary'"
-          [class.narrator-highlight]="activeNarratorCue()?.id === 'summary'"
-          [style.--highlight-color]="activeNarratorCue()?.color"
-        >
-          <app-stat-card label="Warsaw students" [value]="store.data().summary?.totalStudents ?? 0" />
-          <app-stat-card label="Active Common Core students" [value]="store.data().summary?.activeStudents ?? 0" [accent]="true" />
-          <app-stat-card label="Average level" [value]="(store.data().summary?.averageLevel ?? 0).toFixed(2)" />
-          <app-stat-card label="Completed (7 days)" [value]="store.data().summary?.completionsLast7Days ?? 0" />
-          <app-stat-card label="Completed (30 days)" [value]="store.data().summary?.completionsLast30Days ?? 0" />
-          <app-community-split-chart
-            [totalStudents]="store.data().summary?.totalStudents ?? 0"
-            [activeStudents]="store.data().summary?.activeStudents ?? 0"
-          />
-        </div>
+      <section class="section" aria-labelledby="analytics-heading">
+        <h2 id="analytics-heading" class="visually-hidden">Dashboard analytics</h2>
+        <app-dashboard-analytics
+          [summary]="store.data().summary"
+          [coalitions]="store.data().coalitions"
+          [activeCueId]="activeNarratorCue()?.id ?? null"
+          [activeCueColor]="activeNarratorCue()?.color ?? null"
+        />
       </section>
 
       <section class="section" aria-labelledby="celebration-heading">

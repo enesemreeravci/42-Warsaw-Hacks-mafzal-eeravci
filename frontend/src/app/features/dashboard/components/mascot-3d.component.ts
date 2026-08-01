@@ -25,7 +25,9 @@ const DEFAULT_SCENE_URL = 'https://prod.spline.design/quDX76eTdC6YCMca/scene.spl
     >
       <spline-viewer #viewer [url]="sceneUrl()" background="transparent" loading-anim-type="spinner-small-light"></spline-viewer>
 
-      <div class="mascot3d__bubble" [class.mascot3d__bubble--pop]="bubblePop()" aria-live="polite">{{ bubbleText() }}</div>
+      @if (showBubble()) {
+        <div class="mascot3d__bubble" [class.mascot3d__bubble--pop]="bubblePop()" aria-live="polite">{{ bubbleText() }}</div>
+      }
     </div>
   `,
   styles: `
@@ -133,6 +135,9 @@ export class Mascot3dComponent implements AfterViewInit, OnDestroy {
   /** Mirrors just the 3D viewer (not the speech bubble text) horizontally, so the mascot appears
    * to gaze inward/left when it's perched at a target's top-right corner. */
   readonly mirrored = input<boolean>(false);
+  /** Set to false to hide the speech-bubble caption entirely (e.g. the floating narrator, which
+   * only wants the figure itself - see NarratorRobotComponent). */
+  readonly showBubble = input<boolean>(true);
 
   readonly refresh = output<void>();
 

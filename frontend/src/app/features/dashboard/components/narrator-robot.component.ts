@@ -16,13 +16,14 @@ const ROBOT_HEIGHT = 120;
 const EDGE_MARGIN = 8;
 
 /**
- * Floating, boxless 3D mascot: no card or background wraps it, it just floats over whichever
- * panel is currently active, perched at that panel's real top-right corner (read from
- * `NarratorTargetRegistry`, populated by `appNarratorTarget` directives elsewhere on the page -
- * this component never guesses a fixed screen position). Mirrors itself to visually gaze back
- * in toward the panel, smooth-scrolls that panel into view whenever the active cue changes, and
- * keeps tracking the corner in real time while that scroll (or a window resize) is in flight.
- * There is exactly one instance of this on the page at any time (mounted once outside the
+ * Floating, boxless 3D mascot: no card, background, or speech bubble wraps it, it just floats
+ * over whichever panel is currently active, perched at that panel's real top-right corner (read
+ * from `NarratorTargetRegistry`, populated by `appNarratorTarget` directives elsewhere on the
+ * page - this component never guesses a fixed screen position). Always faces left (its natural,
+ * unmirrored orientation - toward whatever it's perched beside) regardless of which panel it's
+ * tracking. Smooth-scrolls the active panel into view whenever the cue changes, and keeps
+ * tracking the corner in real time while that scroll (or a window resize) is in flight. There is
+ * exactly one instance of this on the page at any time (mounted once outside the
  * TV-mode/main-dashboard branch in dashboard.page.html) so the mascot is never duplicated per
  * panel or per TV slide.
  */
@@ -45,7 +46,8 @@ const EDGE_MARGIN = 8;
             [message]="active.text"
             [refreshing]="refreshing()"
             [heightPx]="ROBOT_HEIGHT"
-            [mirrored]="true"
+            [mirrored]="false"
+            [showBubble]="false"
             (refresh)="refresh.emit()"
           />
         </div>

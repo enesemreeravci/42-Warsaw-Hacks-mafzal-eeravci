@@ -42,6 +42,8 @@ describe('ApiService', () => {
         completionsLast7Days: 2,
         completionsLast30Days: 6,
         totalValidatedCompletions: 20,
+        totalEnrolledProjects: 5,
+        averageCompletionRate: 82.5,
         latestCompletionAt: null,
         generatedAt: 'now',
         cacheStatus: 'fresh',

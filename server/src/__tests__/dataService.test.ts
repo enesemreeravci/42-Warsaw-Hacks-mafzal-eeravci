@@ -174,4 +174,43 @@ describe('DataService coalitions top-contributor lookup', () => {
 
     expect(standings[0]!.topContributor).toMatchObject({ login: 'student2', score: 500 });
   });
+
+  it('attaches weeklyTopContributor from recent validated completions, restricted to the campus roster', async () => {
+    const calls: RecordedCall[] = [];
+    const cursusUsers = [cursusUserFixture(1), cursusUserFixture(2)];
+    const blocs = [{ id: 1, campus_id: 67, cursus_id: 21, coalitions: [{ id: 459, name: 'Lunaria', slug: 'lunaria', score: 1000 }] }];
+    const recentCompletion = {
+      id: 1,
+      final_mark: 80,
+      status: 'finished',
+      'validated?': true,
+      marked_at: new Date().toISOString(),
+      user: { id: 2, login: 'student2', displayname: 'Student 2' },
+      project: { id: 1, name: 'Libft' },
+    };
+
+    const apiClient = fakeApiClient(calls, {
+      paginateImpl: (path) => {
+        if (path === '/v2/cursus_users') return cursusUsers;
+        if (path === '/v2/blocs') return blocs;
+        if (path === '/v2/projects_users') return [recentCompletion];
+        return [];
+      },
+      getImpl: (path) => {
+        if (path === '/v2/coalitions_users') {
+          return [
+            { id: 1, coalition_id: 459, user_id: 1, score: 900 }, // all-time leader, but no recent activity
+            { id: 2, coalition_id: 459, user_id: 2, score: 50 },
+          ];
+        }
+        return [];
+      },
+    });
+    const service = new DataService({ cacheTtlSeconds: 300 }, apiClient, fakeDiscovery(), silentLogger);
+
+    const standings = await service.getCoalitions();
+
+    expect(standings[0]!.topContributor).toMatchObject({ login: 'student1', score: 900 });
+    expect(standings[0]!.weeklyTopContributor).toMatchObject({ login: 'student2', weeklyPoints: 80 });
+  });
 });

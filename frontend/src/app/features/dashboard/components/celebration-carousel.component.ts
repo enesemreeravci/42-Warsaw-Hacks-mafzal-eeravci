@@ -1,239 +1,203 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
-import { timer } from 'rxjs';
 import type { ProjectCompletion } from '../../../core/models/api.models';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
-import { VisibilityService } from '../../../core/services/visibility.service';
 
-const ROTATION_MS = 5000;
-const MAX_DOTS = 8;
+const PERFECT_MARK = 100;
 
-/** Centered circular spotlight for recently completed projects - one avatar in a glowing ring,
- * dead-center, auto-cycling with a smooth fade/scale transition between profiles rather than an
- * instant swap or a wide strip of avatars. Pausable and screen-reader friendly. */
+interface FeedCard {
+  completion: ProjectCompletion;
+  isPerfect: boolean;
+}
+
+/** Compact activity-feed grid of recently completed projects - a dense card per completion
+ * (mini-avatar, project tag, score pill, time-ago, validation status) instead of a single
+ * cycling spotlight or a tall, sparse stacked list. */
 @Component({
   selector: 'app-celebration-carousel',
   standalone: true,
   imports: [AvatarComponent, EmptyStateComponent, RelativeTimePipe, MatIconModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (completions().length === 0) {
+    @if (cards().length === 0) {
       <app-empty-state title="No recent completions" description="Validated project completions will appear here as they happen." />
     } @else {
-      <div class="spotlight" role="region" aria-label="Recently completed projects" aria-live="polite">
-        <button class="spotlight__nav spotlight__nav--prev" type="button" (click)="prev()" aria-label="Previous celebration">
-          <mat-icon>chevron_left</mat-icon>
-        </button>
-
-        @for (item of [current()]; track index()) {
-          @if (item) {
-            <a class="spotlight__body" [routerLink]="['/students', item.login]">
-              <span class="spotlight__ring" [class.spotlight__ring--fail]="!item.validated">
-                <app-avatar [imageUrl]="item.imageUrl" [name]="item.displayName" [size]="96" />
-              </span>
-              <p class="spotlight__name">{{ item.displayName }}</p>
-              <p class="spotlight__meta">
-                completed <strong>{{ item.projectName }}</strong>
-                @if (item.finalMark !== null) {
-                  <span class="spotlight__mark">{{ item.finalMark }}/100</span>
-                }
-              </p>
-              <p class="spotlight__time">{{ item.completedAt | relativeTime }}</p>
-            </a>
-          }
-        }
-
-        <button class="spotlight__nav spotlight__nav--next" type="button" (click)="next()" aria-label="Next celebration">
-          <mat-icon>chevron_right</mat-icon>
-        </button>
-
-        <div class="spotlight__controls">
-          @if (dots().length > 1) {
-            <div class="spotlight__dots" role="tablist" aria-label="Celebration slides">
-              @for (dot of dots(); track dot) {
-                <span class="dot" [class.dot--active]="dot === index()"></span>
-              }
-            </div>
-          }
-          <button
-            class="spotlight__pause"
-            type="button"
-            (click)="togglePause()"
-            [attr.aria-pressed]="paused()"
-            aria-label="Pause or resume rotation"
+      <div class="feed" role="list" aria-label="Recently completed projects">
+        @for (card of cards(); track card.completion.projectUserId) {
+          <a
+            class="feed-card"
+            [class.feed-card--fail]="!card.completion.validated"
+            [routerLink]="['/students', card.completion.login]"
+            role="listitem"
           >
-            <mat-icon>{{ paused() ? 'play_arrow' : 'pause' }}</mat-icon>
-          </button>
-        </div>
+            <app-avatar [imageUrl]="card.completion.imageUrl" [name]="card.completion.displayName" [size]="40" />
+
+            <div class="feed-card__body">
+              <div class="feed-card__row">
+                <span class="feed-card__name">{{ card.completion.displayName }}</span>
+                <mat-icon
+                  class="feed-card__status"
+                  [class.feed-card__status--fail]="!card.completion.validated"
+                  [attr.aria-label]="card.completion.validated ? 'Validated' : 'Not validated'"
+                >
+                  {{ card.completion.validated ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+              </div>
+
+              <span class="feed-card__project">{{ card.completion.projectName }}</span>
+
+              <div class="feed-card__meta">
+                @if (card.completion.finalMark !== null) {
+                  <span class="feed-card__score" [class.feed-card__score--perfect]="card.isPerfect">
+                    {{ card.completion.finalMark }}/100
+                  </span>
+                }
+                <span class="feed-card__time">{{ card.completion.completedAt | relativeTime }}</span>
+              </div>
+            </div>
+          </a>
+        }
       </div>
     }
   `,
   styles: `
-    .spotlight {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--space-2);
-      text-align: center;
-      padding: var(--space-2) var(--space-8);
+    .feed {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: var(--space-3);
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 2px var(--space-1) 2px 2px;
     }
 
-    .spotlight__body {
+    .feed-card {
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       text-decoration: none;
       color: inherit;
-      animation: spotlight-cycle-in 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
     }
 
-    @keyframes spotlight-cycle-in {
+    .feed-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--color-accent);
+      box-shadow: 0 0 20px -6px var(--color-accent-glow);
+    }
+
+    .feed-card--fail:hover {
+      border-color: var(--color-danger);
+      box-shadow: 0 0 20px -6px rgba(255, 84, 112, 0.4);
+    }
+
+    .feed-card__body {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .feed-card__row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .feed-card__name {
+      flex: 1;
+      min-width: 0;
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--color-text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .feed-card__status {
+      flex-shrink: 0;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--color-success);
+    }
+
+    .feed-card__status--fail {
+      color: var(--color-danger);
+    }
+
+    .feed-card__project {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-accent);
+      text-shadow: 0 0 12px var(--color-accent-glow);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .feed-card__meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: 2px;
+    }
+
+    .feed-card__score {
+      padding: 1px var(--space-2);
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--color-success);
+      background: rgba(56, 225, 154, 0.1);
+      border: 1px solid rgba(56, 225, 154, 0.3);
+    }
+
+    .feed-card--fail .feed-card__score {
+      color: var(--color-danger);
+      background: rgba(255, 84, 112, 0.1);
+      border-color: rgba(255, 84, 112, 0.3);
+    }
+
+    .feed-card__score--perfect {
+      color: var(--color-warn);
+      background: rgba(255, 176, 32, 0.14);
+      border-color: rgba(255, 176, 32, 0.4);
+      box-shadow: 0 0 10px -1px rgba(255, 176, 32, 0.55);
+    }
+
+    .feed-card__time {
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .feed-card {
+        animation: feed-card-in 350ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+      }
+    }
+
+    @keyframes feed-card-in {
       from {
         opacity: 0;
-        transform: scale(0.88);
+        transform: translateY(6px);
       }
       to {
         opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    .spotlight__ring {
-      display: flex;
-      padding: 5px;
-      border-radius: 50%;
-      border: 2px solid var(--color-accent-strong);
-      box-shadow: 0 0 26px -2px var(--color-accent-glow);
-      transition: transform 300ms ease;
-    }
-
-    .spotlight__body:hover .spotlight__ring {
-      transform: scale(1.03);
-    }
-
-    .spotlight__ring--fail {
-      border-color: var(--color-danger);
-      box-shadow: 0 0 26px -2px rgba(255, 84, 112, 0.4);
-    }
-
-    .spotlight__nav {
-      position: absolute;
-      top: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-elevated);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      flex-shrink: 0;
-
-      mat-icon {
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
-      }
-    }
-
-    .spotlight__nav--prev {
-      left: var(--space-3);
-    }
-
-    .spotlight__nav--next {
-      right: var(--space-3);
-    }
-
-    .spotlight__nav:hover {
-      border-color: var(--color-accent);
-      color: var(--color-text-primary);
-    }
-
-    .spotlight__name {
-      margin: var(--space-2) 0 0;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .spotlight__meta {
-      margin: 2px 0 0;
-      color: var(--color-text-secondary);
-      font-size: 0.88rem;
-    }
-
-    .spotlight__mark {
-      margin-left: var(--space-2);
-      color: var(--color-success);
-      font-weight: 700;
-    }
-
-    .spotlight__time {
-      margin: 2px 0 0;
-      color: var(--color-text-muted);
-      font-size: 0.8rem;
-    }
-
-    .spotlight__controls {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      margin-top: var(--space-2);
-    }
-
-    .spotlight__dots {
-      display: flex;
-      gap: 5px;
-    }
-
-    .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--color-border-strong);
-    }
-
-    .dot--active {
-      background: var(--color-accent);
-      width: 16px;
-      border-radius: 999px;
-      transition: width var(--transition-standard);
-    }
-
-    .spotlight__pause {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-elevated);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      flex-shrink: 0;
-
-      mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-      }
-    }
-
-    .spotlight__pause:hover {
-      border-color: var(--color-accent);
-      color: var(--color-text-primary);
-    }
-
-    @media (max-width: 560px) {
-      .spotlight {
-        padding: var(--space-2) var(--space-7);
+        transform: translateY(0);
       }
     }
   `,
@@ -241,49 +205,10 @@ const MAX_DOTS = 8;
 export class CelebrationCarouselComponent {
   readonly completions = input.required<ProjectCompletion[]>();
 
-  private readonly visibility = inject(VisibilityService);
-  private readonly destroyRef = inject(DestroyRef);
-
-  protected readonly index = signal(0);
-  protected readonly paused = signal(false);
-
-  protected readonly current = computed(() => this.completions()[this.index()] ?? null);
-
-  /** Dot positions to show, capped so a long completions list doesn't produce an unreadable row. */
-  protected readonly dots = computed(() => {
-    const length = Math.min(this.completions().length, MAX_DOTS);
-    return Array.from({ length }, (_, i) => i);
-  });
-
-  constructor() {
-    timer(ROTATION_MS, ROTATION_MS)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        if (this.paused() || this.visibility.hidden() || this.completions().length <= 1) return;
-        this.next();
-      });
-
-    effect(() => {
-      const length = this.completions().length;
-      if (this.index() >= length) {
-        this.index.set(0);
-      }
-    });
-  }
-
-  protected next(): void {
-    const length = this.completions().length;
-    if (length === 0) return;
-    this.index.update((i) => (i + 1) % length);
-  }
-
-  protected prev(): void {
-    const length = this.completions().length;
-    if (length === 0) return;
-    this.index.update((i) => (i - 1 + length) % length);
-  }
-
-  protected togglePause(): void {
-    this.paused.update((v) => !v);
-  }
+  protected readonly cards = computed<FeedCard[]>(() =>
+    this.completions().map((completion) => ({
+      completion,
+      isPerfect: completion.finalMark !== null && completion.finalMark >= PERFECT_MARK,
+    })),
+  );
 }

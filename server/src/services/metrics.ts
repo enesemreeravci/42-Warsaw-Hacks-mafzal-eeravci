@@ -36,6 +36,10 @@ export function buildDashboardSummary(
   cacheStatus: DashboardSummary['cacheStatus'],
 ): DashboardSummary {
   const validated = completions.filter((c) => c.validated);
+  const finished = completions.filter((c) => c.status === 'finished');
+  const distinctProjectIds = new Set(finished.map((c) => c.projectId));
+  const averageCompletionRate = finished.length > 0 ? Math.round((validated.length / finished.length) * 10000) / 100 : 0;
+
   return {
     totalStudents: students.length,
     activeStudents: students.filter((s) => s.active).length,
@@ -43,6 +47,8 @@ export function buildDashboardSummary(
     completionsLast7Days: countCompletionsSince(completions, daysAgo(generatedAt, 7)),
     completionsLast30Days: countCompletionsSince(completions, daysAgo(generatedAt, 30)),
     totalValidatedCompletions: validated.length,
+    totalEnrolledProjects: distinctProjectIds.size,
+    averageCompletionRate,
     latestCompletionAt: latestCompletionAt(completions),
     generatedAt: generatedAt.toISOString(),
     cacheStatus,

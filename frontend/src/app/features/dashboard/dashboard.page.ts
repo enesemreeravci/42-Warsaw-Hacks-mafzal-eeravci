@@ -7,13 +7,12 @@ import { TvModeService } from '../../core/services/tv-mode.service';
 import { VisibilityService } from '../../core/services/visibility.service';
 import { ErrorStateComponent } from '../../shared/components/error-state/error-state.component';
 import { LoadingSkeletonComponent } from '../../shared/components/loading-skeleton/loading-skeleton.component';
-import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { AchievementSpotlightComponent } from './components/achievement-spotlight.component';
 import { AssistantWidgetComponent } from './components/assistant-widget.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
 import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
-import { CommunitySplitChartComponent } from './components/community-split-chart.component';
 import { CompletionTrendChartComponent } from './components/completion-trend-chart.component';
+import { DashboardAnalyticsComponent } from './components/dashboard-analytics.component';
 import { HiveNodeMapComponent } from './components/hive-node-map.component';
 import { LiveEvaluationsComponent } from './components/live-evaluations.component';
 import { NarratorRobotComponent, type NarratorCue } from './components/narrator-robot.component';
@@ -31,7 +30,10 @@ const NARRATOR_ROTATION_MS = 6500;
  * `id` is matched against an `appNarratorTarget` directive on the corresponding panel in
  * dashboard.page.html - that's how the narrator finds its target's real screen position. */
 const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
-  { id: 'summary', color: '#34e2c4', text: "Here's Warsaw's Common Core community at a glance." },
+  { id: 'analytics-students', color: '#4cc9f0', text: 'Total vs. active Common Core students, at a glance.' },
+  { id: 'analytics-projects', color: '#ffb020', text: 'Enrolled projects and completion activity over the last 7 and 30 days.' },
+  { id: 'analytics-community', color: '#be2ad1', text: "The community split, and the campus's average level." },
+  { id: 'analytics-coalition', color: '#38e19a', text: "Which coalition's pulling ahead this week." },
   { id: 'celebration', color: '#ffb020', text: 'Freshly validated completions show up here first.' },
   { id: 'trend', color: '#16f0a6', text: 'Validation activity over time - switch the range above to zoom.' },
   { id: 'projects', color: '#be2ad1', text: 'The most-completed projects across the whole cursus.' },
@@ -56,10 +58,10 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     MatButtonToggleModule,
     ErrorStateComponent,
     LoadingSkeletonComponent,
-    StatCardComponent,
     AssistantWidgetComponent,
     CelebrationCarouselComponent,
     CompletionTrendChartComponent,
+    DashboardAnalyticsComponent,
     TopProjectsListComponent,
     TopStudentsByLevelComponent,
     TopStudentsByCompletedComponent,
@@ -69,7 +71,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     CoalitionLeaderboardComponent,
     LiveEvaluationsComponent,
     RobotAchievementShowcaseComponent,
-    CommunitySplitChartComponent,
     NarratorRobotComponent,
     NarratorTargetDirective,
   ],

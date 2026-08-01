@@ -88,6 +88,36 @@ describe('buildDashboardSummary', () => {
     expect(summary.totalValidatedCompletions).toBe(1);
     expect(summary.cacheStatus).toBe('fresh');
   });
+
+  it('counts distinct finished-status projects for totalEnrolledProjects, ignoring non-finished attempts', () => {
+    const now = new Date();
+    const completions = [
+      makeCompletion({ projectId: 1, status: 'finished', validated: true }),
+      makeCompletion({ projectId: 1, studentId: 2, status: 'finished', validated: false }),
+      makeCompletion({ projectId: 2, status: 'finished', validated: true }),
+      makeCompletion({ projectId: 3, status: 'in_progress', validated: false }),
+    ];
+    const summary = buildDashboardSummary([makeStudent()], completions, now, 'fresh');
+    expect(summary.totalEnrolledProjects).toBe(2);
+  });
+
+  it('computes averageCompletionRate as validated/finished attempts, as a percentage', () => {
+    const now = new Date();
+    const completions = [
+      makeCompletion({ status: 'finished', validated: true }),
+      makeCompletion({ status: 'finished', validated: true }),
+      makeCompletion({ status: 'finished', validated: false }),
+      makeCompletion({ status: 'in_progress', validated: false }), // excluded - not a finished attempt
+    ];
+    const summary = buildDashboardSummary([makeStudent()], completions, now, 'fresh');
+    expect(summary.averageCompletionRate).toBeCloseTo(66.67, 1);
+  });
+
+  it('reports 0 for totalEnrolledProjects/averageCompletionRate rather than dividing by zero when there are no completions', () => {
+    const summary = buildDashboardSummary([makeStudent()], [], new Date(), 'fresh');
+    expect(summary.totalEnrolledProjects).toBe(0);
+    expect(summary.averageCompletionRate).toBe(0);
+  });
 });
 
 describe('buildCompletionTrend', () => {
