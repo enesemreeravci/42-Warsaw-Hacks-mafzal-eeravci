@@ -196,6 +196,64 @@ export interface HealthResponse {
   authReady: boolean;
 }
 
+/** One student's aggregated Weekly Campus Activity figures - either ranking (Most Campus Time,
+ * Most Sessions Started) is a Top-10 list of these, over the trailing 7 days. */
+export interface WeeklyActivityStudent {
+  userId: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  totalMinutes: number;
+  totalHours: number;
+  sessionCount: number;
+  averageSessionMinutes: number;
+  uniqueHostCount: number;
+}
+
+export interface WeeklyCampusActivitySummary {
+  validStudents: number;
+  locationRecordsProcessed: number;
+  uniqueActiveStudents: number;
+  totalCampusMinutes: number;
+  totalSessions: number;
+}
+
+export interface WeeklyCampusActivityMeta {
+  campusId: number;
+  cursusId: number;
+  /** 'cache' means the live 42 API call failed and this is the last successfully cached
+   * result - see `warning` for the user-facing explanation. */
+  source: '42-api' | 'cache';
+  lastUpdated: string;
+  warning?: string;
+  /** Sessions already in progress when the reporting window opened aren't returned by the 42
+   * API's begin_at-range filter, so both rankings can slightly undercount total time. */
+  limitation: string;
+}
+
+export interface WeeklyCampusActivityResponse {
+  period: { start: string; end: string; timeZone: 'Europe/Warsaw' };
+  mostCampusTime: WeeklyActivityStudent[];
+  mostSessionsStarted: WeeklyActivityStudent[];
+  summary: WeeklyCampusActivitySummary;
+  meta: WeeklyCampusActivityMeta;
+}
+
+/** A normalized `/v2/campus/:id/events` record - see backend/src/services/events.ts. */
+export interface CampusEvent {
+  id: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  beginAt: string;
+  endAt: string;
+  participants: number;
+  maxParticipants: number | null;
+  availableSpots: number | null;
+  kind: string;
+  themes: string[];
+}
+
 export interface Ft42Status {
   reachable: boolean;
   responseTimeMs: number | null;

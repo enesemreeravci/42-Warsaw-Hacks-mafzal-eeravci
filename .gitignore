@@ -31,3 +31,7 @@ coverage/
 
 # Test artifacts
 /frontend/.angular/cache
+
+
+
+.claude/settings.local.json

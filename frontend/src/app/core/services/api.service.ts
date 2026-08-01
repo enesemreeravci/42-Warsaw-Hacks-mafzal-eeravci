@@ -4,6 +4,7 @@ import { Observable, map } from 'rxjs';
 import type {
   ApiEnvelope,
   AppConfigResponse,
+  CampusEvent,
   CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
@@ -21,6 +22,7 @@ import type {
   StudentRanking,
   StudentSummary,
   TopStudentMetric,
+  WeeklyCampusActivityResponse,
 } from '../models/api.models';
 
 /** Thin typed wrapper around the backend-for-frontend REST API. Every call is relative to /api. */
@@ -72,6 +74,15 @@ export class ApiService {
   getEvaluations(limit = 15): Observable<ApiEnvelope<EvaluationEntry[]>> {
     const params = new HttpParams().set('limit', limit);
     return this.http.get<ApiEnvelope<EvaluationEntry[]>>(`${this.base}/dashboard/evaluations`, { params });
+  }
+
+  getWeeklyCampusActivity(): Observable<ApiEnvelope<WeeklyCampusActivityResponse>> {
+    return this.http.get<ApiEnvelope<WeeklyCampusActivityResponse>>(`${this.base}/dashboard/weekly-campus-activity`);
+  }
+
+  getUpcomingEvents(limit = 5): Observable<ApiEnvelope<CampusEvent[]>> {
+    const params = new HttpParams().set('limit', limit);
+    return this.http.get<ApiEnvelope<CampusEvent[]>>(`${this.base}/dashboard/upcoming-events`, { params });
   }
 
   refreshDashboard(): Observable<ApiEnvelope<{ status: string; startedAt: string; finishedAt?: string }>> {

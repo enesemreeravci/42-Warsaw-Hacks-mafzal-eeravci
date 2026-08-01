@@ -21,6 +21,8 @@ import { RobotAchievementShowcaseComponent } from './components/robot-achievemen
 import { TopProjectsListComponent } from './components/top-projects-list.component';
 import { TopStudentsByCompletedComponent } from './components/top-students-by-completed.component';
 import { TopStudentsByLevelComponent } from './components/top-students-by-level.component';
+import { UpcomingEventsComponent } from './components/upcoming-events.component';
+import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
 const NARRATOR_ROTATION_MS = 6500;
@@ -38,6 +40,7 @@ const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
   { id: 'projects', color: '#be2ad1', text: 'The most-completed projects across the whole cursus.' },
   { id: 'level', color: '#52bdff', text: 'Top students ranked by level.' },
   { id: 'completed', color: '#38e19a', text: 'Top students ranked by validated projects.' },
+  { id: 'events', color: '#ffb020', text: "What's coming up next on campus." },
 ];
 
 /** Cues for TV mode, one per rotating section (index-matched to `TvModeService.activeSection()`). */
@@ -48,6 +51,8 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'coalitions', color: '#be2ad1', text: "Coalition standings and each team's top contributor." },
   { id: 'evaluations', color: '#4cc9f0', text: 'Freshly filled peer evaluations.' },
   { id: 'showcase', color: '#34e2c4', text: "A closer look at today's top achievements." },
+  { id: 'weekly-campus-time', color: '#4cc9f0', text: 'These students spent the most time working from campus this week.' },
+  { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
 ];
 
 @Component({
@@ -71,6 +76,8 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     RobotAchievementShowcaseComponent,
     NarratorRobotComponent,
     NarratorTargetDirective,
+    WeeklyCampusActivityBoardComponent,
+    UpcomingEventsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dashboard.page.html',

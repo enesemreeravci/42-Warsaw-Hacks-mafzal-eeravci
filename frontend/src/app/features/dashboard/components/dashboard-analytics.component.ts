@@ -93,6 +93,13 @@ import { StudentOverviewCardComponent } from './student-overview-card.component'
       transition: box-shadow 500ms ease;
     }
 
+    /* Mirrors .narrator-highlight in dashboard.page.scss - that rule is scoped to dashboard.page.html
+       by Angular's view encapsulation and never reaches these cells since they live in this
+       component's own template, so the narrator's spotlight ring needs its own copy here too. */
+    .dashboard-analytics__cell.narrator-highlight {
+      box-shadow: 0 0 0 2px var(--highlight-color, var(--color-accent)), 0 0 32px -6px var(--highlight-color, var(--color-accent));
+    }
+
     @media (max-width: 1100px) {
       .dashboard-analytics__grid {
         grid-template-columns: 1fr;

@@ -184,6 +184,24 @@ export function dashboardRouter(ctx: AppContext): Router {
     }),
   );
 
+  router.get(
+    '/dashboard/weekly-campus-activity',
+    asyncHandler(async (_req, res) => {
+      const activity = await ctx.dataService.getWeeklyCampusActivity();
+      const isStale = activity.meta.source === 'cache';
+      sendData(res, activity, { cached: isStale, staleData: isStale });
+    }),
+  );
+
+  router.get(
+    '/dashboard/upcoming-events',
+    asyncHandler(async (req, res) => {
+      const limit = clampInt(req.query.limit, 5, 1, 50);
+      const events = await ctx.dataService.getUpcomingEvents(limit);
+      sendData(res, events);
+    }),
+  );
+
   router.post(
     '/dashboard/refresh',
     asyncHandler(async (_req, res) => {

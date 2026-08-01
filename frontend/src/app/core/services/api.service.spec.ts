@@ -95,4 +95,29 @@ describe('ApiService', () => {
       meta: { generatedAt: 'now', cached: false },
     });
   });
+
+  it('requests GET /api/dashboard/weekly-campus-activity', () => {
+    service.getWeeklyCampusActivity().subscribe((res) => expect(res.data.mostCampusTime).toEqual([]));
+
+    const req = httpMock.expectOne('/api/dashboard/weekly-campus-activity');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      data: {
+        period: { start: 'now', end: 'now', timeZone: 'Europe/Warsaw' },
+        mostCampusTime: [],
+        mostSessionsStarted: [],
+        summary: { validStudents: 0, locationRecordsProcessed: 0, uniqueActiveStudents: 0, totalCampusMinutes: 0, totalSessions: 0 },
+        meta: { campusId: 67, cursusId: 21, source: '42-api', lastUpdated: 'now', limitation: '' },
+      },
+      meta: { generatedAt: 'now', cached: false },
+    });
+  });
+
+  it('requests GET /api/dashboard/upcoming-events with a limit param', () => {
+    service.getUpcomingEvents(3).subscribe((res) => expect(res.data).toEqual([]));
+
+    const req = httpMock.expectOne((r) => r.url === '/api/dashboard/upcoming-events' && r.params.get('limit') === '3');
+    expect(req.request.method).toBe('GET');
+    req.flush({ data: [], meta: { generatedAt: 'now', cached: false } });
+  });
 });

@@ -2,8 +2,9 @@ import { Injectable, computed, signal } from '@angular/core';
 
 const DEFAULT_ROTATION_SECONDS = 15;
 /** The Hive, the Level-Up Spotlight, the XP Race / Black Hole tracker, the Coalition
- * Leaderboard, Live Evaluations, and the Robot Achievement Showcase. */
-const DASHBOARD_SECTION_COUNT = 6;
+ * Leaderboard, Live Evaluations, the Robot Achievement Showcase, and the two Weekly Campus
+ * Activity rankings (Most Campus Time, Most Sessions Started). */
+const DASHBOARD_SECTION_COUNT = 8;
 
 /** Holds TV-mode UI state: on/off, section rotation index, and rotation interval. */
 @Injectable({ providedIn: 'root' })

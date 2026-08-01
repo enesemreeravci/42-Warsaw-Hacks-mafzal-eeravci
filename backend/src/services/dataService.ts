@@ -7,6 +7,7 @@ import type {
   RawBloc,
   RawCoalitionUser,
   RawCursusUser,
+  RawEvent,
   RawLocation,
   RawProject,
   RawProjectUser,
@@ -17,9 +18,12 @@ import type {
 import { TtlCache, type CacheGetResult } from '../utils/cache.js';
 import { buildCoalitionStandings, buildTopContributors, buildWeeklyTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
+import { buildUpcomingEvents, type CampusEvent } from './events.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
 import type { Ft42ApiClient } from './ft42ApiClient.js';
+import { buildWeeklyCampusActivity, getLastSevenDaysRange, type WeeklyCampusActivityResponse } from './weeklyCampusActivity.js';
+import { dedupeById } from '../utils/dedupe.js';
 
 export interface CurrentProjectRef {
   projectId: number;
@@ -61,6 +65,16 @@ const WEEKLY_TOP_CONTRIBUTOR_DAYS = 7;
 // waiting longer for (a deliberately-opened student profile), not for the auto-loading dashboard.
 const RECENT_WINDOW_DAYS = 45;
 const HISTORICAL_TTL_MS = 15 * 60 * 1000;
+const UPCOMING_EVENTS_KEY = 'upcoming-events';
+const UPCOMING_EVENTS_LIMIT = 5;
+const WEEKLY_CAMPUS_ACTIVITY_KEY = 'weekly-campus-activity';
+// Weekly rankings don't meaningfully change minute-to-minute, so this is deliberately much
+// longer than cacheTtlSeconds (the dashboard's default) - see getWeeklyCampusActivity().
+const WEEKLY_ACTIVITY_TTL_MS = 45 * 60 * 1000;
+// A week of `/v2/campus/:id/locations` for a campus this size is a few thousand records at
+// most (page[size]=100) - generous headroom over what's actually expected, same spirit as the
+// other maxPages bounds in this file.
+const WEEKLY_ACTIVITY_LOCATIONS_MAX_PAGES = 100;
 
 /**
  * Orchestrates live data loading, discovery, and caching against the 42 API. Every
@@ -335,6 +349,109 @@ export class DataService {
     }
 
     return filled;
+  }
+
+  /**
+   * Next `limit` upcoming (or currently live) Warsaw campus events, soonest first. Cached under
+   * the default cacheTtlSeconds (5 minutes, same as every route reading through DataService's
+   * cache) rather than a longer custom TTL - the widget's own "refresh every 5 minutes" auto-poll
+   * (DashboardStore's existing auto-refresh interval, not a new timer) lines up with that TTL, so
+   * each poll picks up genuinely new data instead of hammering the 42 API. Like
+   * getWeeklyCampusActivity(), deliberately not part of BackgroundRefreshService's 45s core cycle
+   * - event listings don't need near-real-time warmth, and pre-warming this that often would only
+   * add load against the shared rate limiter for no visible benefit.
+   */
+  async getUpcomingEvents(limit = UPCOMING_EVENTS_LIMIT): Promise<CampusEvent[]> {
+    const result = await this.cache.getOrLoad(UPCOMING_EVENTS_KEY, () => this.loadUpcomingEventsRaw());
+    return (result.value as CampusEvent[]).slice(0, limit);
+  }
+
+  private async loadUpcomingEventsRaw(): Promise<CampusEvent[]> {
+    const discovered = await this.getDiscoveredConfig();
+    const now = new Date();
+
+    const raw = await this.apiClient.paginate<RawEvent>(
+      `/v2/campus/${discovered.campusId}/events`,
+      { 'filter[future]': true, sort: 'begin_at' },
+      { pageSize: 100, maxPages: 10 },
+    );
+
+    // Cached at the full (un-limited) UPCOMING_EVENTS_LIMIT-independent set so a future caller
+    // asking for a larger limit doesn't need a second live fetch - getUpcomingEvents() applies
+    // its own `limit` on top of whatever's cached here.
+    const events = buildUpcomingEvents(dedupeById(raw), now, 50);
+    this.logger.info({ eventCount: events.length }, 'Loaded upcoming events from 42 API');
+    return events;
+  }
+
+  /**
+   * "Weekly Campus Activity": Most Campus Time + Most Sessions Started, trailing 7 days,
+   * Warsaw main-cursus students only (see weeklyCampusActivity.ts for the filtering/ranking
+   * logic itself). Cached for WEEKLY_ACTIVITY_TTL_MS and refreshed lazily on first request -
+   * unlike getCoreDataset()/getCoalitions(), this is deliberately NOT part of
+   * BackgroundRefreshService's 45s core cycle: at that cadence it would add real load fetching
+   * a week of `/v2/campus/:id/locations` against the shared 42 API rate limit for zero benefit,
+   * since the TTL - not the fetch frequency - is what actually bounds how often this re-fetches.
+   * On upstream failure, falls back to the last cached result with `meta.source: 'cache'` and a
+   * warning instead of failing the request, as long as something has been cached before.
+   */
+  async getWeeklyCampusActivity(): Promise<WeeklyCampusActivityResponse> {
+    const discovered = await this.getDiscoveredConfig();
+    const result = await this.loadWithStatus(
+      WEEKLY_CAMPUS_ACTIVITY_KEY,
+      () => this.loadWeeklyCampusActivityRaw(discovered),
+      WEEKLY_ACTIVITY_TTL_MS,
+    );
+
+    if (result.status !== 'stale') return result.value;
+
+    return {
+      ...result.value,
+      meta: {
+        ...result.value.meta,
+        source: 'cache',
+        warning: 'Showing cached data because live data is unavailable',
+      },
+    };
+  }
+
+  private async loadWeeklyCampusActivityRaw(discovered: DiscoveredConfig): Promise<WeeklyCampusActivityResponse> {
+    const now = new Date();
+    const period = getLastSevenDaysRange(now);
+
+    // Reuses the same ROSTER_KEY cache entry getCoreDataset()/getHistoricalCoreDataset()
+    // populate, instead of a second live /v2/cursus_users fetch for the same roster.
+    const roster = await this.loadWithStatus(ROSTER_KEY, () => this.loadRosterRaw(discovered));
+
+    const rawLocations = await this.apiClient.paginate<RawLocation>(
+      `/v2/campus/${discovered.campusId}/locations`,
+      {
+        'range[begin_at]': `${period.start.toISOString()},${period.end.toISOString()}`,
+        sort: 'begin_at',
+      },
+      { pageSize: 100, maxPages: WEEKLY_ACTIVITY_LOCATIONS_MAX_PAGES },
+    );
+    const locations = dedupeById(rawLocations);
+
+    const response = buildWeeklyCampusActivity({
+      cursusUsers: roster.value.cursusUsers,
+      locations,
+      campusId: discovered.campusId,
+      cursusId: discovered.cursusId,
+      period,
+      now,
+    });
+
+    this.logger.info(
+      {
+        locationRecordsFetched: rawLocations.length,
+        locationRecordsProcessed: response.summary.locationRecordsProcessed,
+        uniqueActiveStudents: response.summary.uniqueActiveStudents,
+      },
+      'Loaded weekly campus activity from 42 API',
+    );
+
+    return response;
   }
 
   invalidateAll(): void {

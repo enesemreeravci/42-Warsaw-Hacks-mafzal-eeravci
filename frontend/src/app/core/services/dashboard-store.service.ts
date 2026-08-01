@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, filter, of, switchMap, timer } from 'rxjs';
 import type {
   AppConfigResponse,
+  CampusEvent,
   CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
@@ -12,6 +13,7 @@ import type {
   ProjectCompletion,
   ProjectMetric,
   StudentRanking,
+  WeeklyCampusActivityResponse,
 } from '../models/api.models';
 import type { NormalizedApiError } from '../interceptors/error.interceptor';
 import { ApiService } from './api.service';
@@ -36,6 +38,8 @@ export interface DashboardData {
   livePulse: LivePulseResponse | null;
   coalitions: CoalitionStanding[];
   evaluations: EvaluationEntry[];
+  weeklyCampusActivity: WeeklyCampusActivityResponse | null;
+  upcomingEvents: CampusEvent[];
 }
 
 /**
@@ -59,6 +63,8 @@ export class DashboardStore {
     livePulse: null,
     coalitions: [],
     evaluations: [],
+    weeklyCampusActivity: null,
+    upcomingEvents: [],
   });
 
   private readonly loadingSignal = signal(true);
@@ -255,7 +261,7 @@ export class DashboardStore {
     this.summaryWarming = false;
     const days = this.selectedPeriodDaysSignal();
 
-    let remaining = 9;
+    let remaining = 11;
     let anySucceeded = false;
 
     const onSettled = (succeeded: boolean): void => {
@@ -325,6 +331,14 @@ export class DashboardStore {
     this.loadField(loadId, 'evaluations', this.api.getEvaluations(), (data, envelope) => ({
       ...data,
       evaluations: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'weeklyCampusActivity', this.api.getWeeklyCampusActivity(), (data, envelope) => ({
+      ...data,
+      weeklyCampusActivity: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'upcomingEvents', this.api.getUpcomingEvents(5), (data, envelope) => ({
+      ...data,
+      upcomingEvents: envelope.data,
     }), onSettled);
   }
 }

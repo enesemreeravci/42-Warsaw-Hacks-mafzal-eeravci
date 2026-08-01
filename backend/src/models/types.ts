@@ -234,7 +234,28 @@ export interface RawLocation {
   id: number;
   begin_at: string;
   end_at: string | null;
+  host?: string;
+  campus_id?: number;
   user?: RawUser;
+  [key: string]: unknown;
+}
+
+/**
+ * A `/v2/campus/:id/events` record. `themes` is speculative - the public 42 API does not
+ * document a `themes` field on events, but the type stays defensive (accepts either strings or
+ * `{name}` objects) in case a given campus/instance adds one, rather than assuming its shape.
+ */
+export interface RawEvent {
+  id: number;
+  name: string;
+  description?: string | null;
+  location?: string | null;
+  kind?: string | null;
+  max_people?: number | null;
+  nbr_subscribers?: number | null;
+  begin_at: string;
+  end_at: string;
+  themes?: Array<string | { name?: string }> | null;
   [key: string]: unknown;
 }
 

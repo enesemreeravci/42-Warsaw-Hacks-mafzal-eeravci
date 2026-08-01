@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -40,19 +40,31 @@ export class App {
   protected readonly clockLabel = signal(this.formatClock());
   protected readonly refreshIntervalOptions = [60, 120, 300, 600, 900];
 
-  protected readonly sidebarExpanded = signal(false);
-  private sidebarCollapseTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  /** Short debounce, not a "give the user time to come back" delay - just enough to absorb the
-   * mouse briefly crossing the sidebar's edge without collapsing, while still feeling instant. */
-  private static readonly SIDEBAR_AUTO_HIDE_MS = 200;
+  /** Single icon-only status indicator standing in for the header's old three badges (warming /
+   * stale / reachable) - same priority order the old template used (@if/@else-if: warming, then
+   * stale, then the always-shown reachability badge). */
+  protected readonly statusIcon = computed(() => {
+    if (this.store.warming()) return 'hourglass_top';
+    if (this.store.stale()) return 'cloud_off';
+    return this.store.ft42Status()?.reachable ? 'cloud_done' : 'cloud_off';
+  });
+
+  protected readonly statusClass = computed(() => {
+    if (this.store.warming()) return 'sidebar__status--warming';
+    if (this.store.stale()) return 'sidebar__status--stale';
+    return this.store.ft42Status()?.reachable ? 'sidebar__status--ok' : 'sidebar__status--down';
+  });
+
+  protected readonly statusTooltip = computed(() => {
+    if (this.store.warming()) return 'First-time data load in progress - this can take a minute or two for a large campus roster.';
+    if (this.store.stale()) return 'Showing the last successfully cached data while the 42 API is unreachable.';
+    return this.store.ft42Status()?.reachable ? '42 API online' : '42 API unreachable';
+  });
 
   constructor() {
     this.store.init();
     this.watchFullscreenChanges();
     this.watchAnnouncements();
-    this.destroyRef.onDestroy(() => {
-      if (this.sidebarCollapseTimeoutId !== null) clearTimeout(this.sidebarCollapseTimeoutId);
-    });
 
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
       this.currentUrl.set((e as NavigationEnd).urlAfterRedirects);
@@ -80,26 +92,6 @@ export class App {
 
   protected setRefreshInterval(seconds: number): void {
     this.store.setAutoRefreshInterval(seconds);
-  }
-
-  /** Instant expand on hover; cancels any pending auto-hide from a previous mouseleave. */
-  protected onSidebarEnter(): void {
-    if (this.sidebarCollapseTimeoutId !== null) {
-      clearTimeout(this.sidebarCollapseTimeoutId);
-      this.sidebarCollapseTimeoutId = null;
-    }
-    this.sidebarExpanded.set(true);
-  }
-
-  /** Starts a 5s inactivity timer - collapses only if the cursor hasn't returned by then. */
-  protected onSidebarLeave(): void {
-    if (this.sidebarCollapseTimeoutId !== null) {
-      clearTimeout(this.sidebarCollapseTimeoutId);
-    }
-    this.sidebarCollapseTimeoutId = setTimeout(() => {
-      this.sidebarExpanded.set(false);
-      this.sidebarCollapseTimeoutId = null;
-    }, App.SIDEBAR_AUTO_HIDE_MS);
   }
 
   private onKeydown(event: KeyboardEvent): void {

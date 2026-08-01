@@ -2,55 +2,25 @@
   <div class="visually-hidden" role="status" aria-live="polite">{{ announcement() }}</div>
 
   @if (!tvMode.enabled()) {
-    <aside
-      class="sidebar"
-      [class.sidebar--expanded]="sidebarExpanded()"
-      (mouseenter)="onSidebarEnter()"
-      (mouseleave)="onSidebarLeave()"
-    >
+    <aside class="sidebar">
       <nav class="sidebar__nav" aria-label="Primary">
-        <a class="sidebar__link" routerLink="/dashboard" routerLinkActive="active" matTooltip="Dashboard" matTooltipPosition="right">
+        <a class="sidebar__link" routerLink="/dashboard" routerLinkActive="active" matTooltip="Dashboard" matTooltipPosition="right" aria-label="Dashboard">
           <mat-icon>dashboard</mat-icon>
-          <span class="sidebar__label">Dashboard</span>
         </a>
-        <a class="sidebar__link" routerLink="/about" routerLinkActive="active" matTooltip="About" matTooltipPosition="right">
+        <a class="sidebar__link" routerLink="/about" routerLinkActive="active" matTooltip="About" matTooltipPosition="right" aria-label="About">
           <mat-icon>info</mat-icon>
-          <span class="sidebar__label">About</span>
         </a>
       </nav>
-    </aside>
 
-    <header class="app-header">
-      <div class="app-header__brand">
-        <img class="app-header__mark" src="icons/42-logo.png" alt="42 Warsaw logo" width="44" height="44" />
-        <div class="app-header__titles">
-          <p class="app-header__title">Warsaw Insight</p>
-          <p class="app-header__subtitle"></p>
-        </div>
-      </div>
+      <div class="sidebar__divider" aria-hidden="true"></div>
 
-      <div class="app-header__status">
-        @if (store.warming()) {
-          <span class="badge badge--warming" matTooltip="First-time data load in progress - this can take a minute or two for a large campus roster.">Warming up&hellip;</span>
-        } @else if (store.stale()) {
-          <span class="badge badge--stale" matTooltip="Showing the last successfully cached data while the 42 API is unreachable.">Stale data</span>
-        }
-        <span
-          class="badge"
-          [class.badge--ok]="store.ft42Status()?.reachable"
-          [class.badge--down]="store.ft42Status() && !store.ft42Status()?.reachable"
-          [matTooltip]="store.ft42Status()?.reachable ? 'The 42 API is reachable.' : 'The 42 API could not be reached.'"
-        >
-          <span class="status-dot" aria-hidden="true"></span>
-          {{ store.ft42Status()?.reachable ? '42 API online' : '42 API unreachable' }}
-        </span>
-      </div>
-
-      <div class="app-header__actions">
+      <div class="sidebar__actions" role="group" aria-label="Dashboard controls">
         <button
           mat-icon-button
           type="button"
+          class="sidebar__action"
           [matTooltip]="store.autoRefreshEnabled() ? 'Auto-refresh on (next in ' + store.countdownSeconds() + 's)' : 'Auto-refresh off'"
+          matTooltipPosition="right"
           [attr.aria-label]="store.autoRefreshEnabled() ? 'Turn auto-refresh off' : 'Turn auto-refresh on'"
           (click)="store.toggleAutoRefresh()"
           [attr.aria-pressed]="store.autoRefreshEnabled()"
@@ -58,7 +28,7 @@
           <mat-icon>{{ store.autoRefreshEnabled() ? 'autorenew' : 'pause_circle' }}</mat-icon>
         </button>
 
-        <button mat-icon-button type="button" matTooltip="Refresh interval" aria-label="Choose refresh interval" [matMenuTriggerFor]="intervalMenu">
+        <button mat-icon-button type="button" class="sidebar__action" matTooltip="Refresh interval" matTooltipPosition="right" aria-label="Choose refresh interval" [matMenuTriggerFor]="intervalMenu">
           <mat-icon>schedule</mat-icon>
         </button>
         <mat-menu #intervalMenu="matMenu">
@@ -70,7 +40,9 @@
         <button
           mat-icon-button
           type="button"
+          class="sidebar__action"
           matTooltip="Refresh now (R)"
+          matTooltipPosition="right"
           aria-label="Refresh now"
           (click)="store.refreshNow()"
           [disabled]="store.refreshing()"
@@ -78,14 +50,24 @@
           <mat-icon [class.spin]="store.refreshing()">refresh</mat-icon>
         </button>
 
-        <button mat-icon-button type="button" matTooltip="TV mode (T)" aria-label="Enter TV mode" (click)="toggleTvMode()">
+        <button mat-icon-button type="button" class="sidebar__action" matTooltip="TV mode (T)" matTooltipPosition="right" aria-label="Enter TV mode" (click)="toggleTvMode()">
           <mat-icon>tv</mat-icon>
         </button>
 
-        <button mat-icon-button type="button" matTooltip="Full screen" aria-label="Toggle full screen" (click)="toggleFullscreen()">
+        <button mat-icon-button type="button" class="sidebar__action" matTooltip="Full screen" matTooltipPosition="right" aria-label="Toggle full screen" (click)="toggleFullscreen()">
           <mat-icon>{{ fullscreenActive() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
         </button>
       </div>
+
+      <div class="sidebar__spacer"></div>
+
+      <div class="sidebar__status" [class]="statusClass()" [matTooltip]="statusTooltip()" matTooltipPosition="right" [attr.aria-label]="statusTooltip()">
+        <mat-icon>{{ statusIcon() }}</mat-icon>
+      </div>
+    </aside>
+
+    <header class="app-header">
+      <p class="app-header__title">42 Warsaw Highlights</p>
     </header>
   } @else {
     <div class="tv-bar">

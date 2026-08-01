@@ -20,6 +20,7 @@ class DashboardStoreStub {
   refreshing = signal(false);
   error = signal(null);
   stale = signal(false);
+  warming = signal(false);
   lastSuccessfulUpdate = signal<Date | null>(null);
   lastFailedUpdate = signal<Date | null>(null);
   autoRefreshEnabled = signal(true);
@@ -60,6 +61,6 @@ describe('App', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.app-header__title')?.textContent).toContain('Warsaw Insight');
+    expect(compiled.querySelector('.app-header__title')?.textContent).toContain('42 Warsaw Highlights');
   });
 });

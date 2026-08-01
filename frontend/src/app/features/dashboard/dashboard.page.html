@@ -22,7 +22,7 @@
 
     @if (partialErrorEntries().length > 0) {
       <div class="inline-banner" role="alert">
-        {{ partialErrorEntries().length }} of 9 dashboard sections failed to refresh and are showing older data:
+        {{ partialErrorEntries().length }} of 11 dashboard sections failed to refresh and are showing older data:
         @for (entry of partialErrorEntries(); track entry.field) {
           <span class="inline-banner__item">{{ entry.field }} ({{ entry.message }})</span>
         }
@@ -102,6 +102,17 @@
           <app-top-students-by-completed [students]="store.data().topStudentsByCompletedProjects" />
         </div>
       </section>
+
+      <section class="section" aria-label="Upcoming events">
+        <div
+          class="panel"
+          [appNarratorTarget]="'events'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'events'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
+          <app-upcoming-events [events]="store.data().upcomingEvents" />
+        </div>
+      </section>
     } @else {
       <div
         class="tv-stage narrator-highlight"
@@ -129,6 +140,22 @@
           }
           @case (5) {
             <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
+          }
+          @case (6) {
+            <app-weekly-campus-activity-board
+              title="Most Campus Time — Last 7 Days"
+              metric="time"
+              [activity]="store.data().weeklyCampusActivity"
+              [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+            />
+          }
+          @case (7) {
+            <app-weekly-campus-activity-board
+              title="Most Sessions Started — Last 7 Days"
+              metric="sessions"
+              [activity]="store.data().weeklyCampusActivity"
+              [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+            />
           }
         }
       </div>
