@@ -24,7 +24,9 @@ function altFromFilename(url: string): string {
  * images live in public/pictures/ (see transcendence-pictures.manifest.ts, regenerated on every
  * `npm start` / `npm run build` - no code changes needed to add a new photo). Photos cascade in
  * one-by-one, top to bottom, PowerPoint-entrance style. A fresh instance is created each time TV
- * mode's rotation cycles back to this section, so the entrance naturally replays every time.
+ * mode's rotation cycles back to this section, so the entrance naturally replays every time. The
+ * section's identity ("Transcendence Completed") is shown in the unified TV header bar (see
+ * app.html) rather than repeated as an in-card title.
  */
 @Component({
   selector: 'app-transcendence-completed-showcase',
@@ -32,9 +34,7 @@ function altFromFilename(url: string): string {
   imports: [EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="transcendence">
-      <h2 class="transcendence__title">Transcendence Completed</h2>
-
+    <div class="transcendence" role="region" aria-label="Transcendence Completed">
       @if (pictures().length === 0) {
         <app-empty-state
           title="No Transcendence photos yet"
@@ -62,19 +62,6 @@ function altFromFilename(url: string): string {
       border-radius: var(--radius-lg);
       border: 1px solid var(--color-border);
       background: radial-gradient(circle at 50% 0%, rgba(52, 226, 196, 0.08), transparent 60%), var(--color-bg-elevated);
-    }
-
-    .transcendence__title {
-      margin: 0;
-      text-align: center;
-      font-size: 2.2rem;
-      font-weight: 900;
-      letter-spacing: 0.02em;
-      background: linear-gradient(90deg, #34e2c4, #4cc9f0 50%, #be2ad1);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-shadow: 0 0 32px rgba(52, 226, 196, 0.25);
     }
 
     .transcendence__grid {

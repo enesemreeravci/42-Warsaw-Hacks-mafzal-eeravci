@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCoalitionStandings, buildTopContributors, buildWeeklyTopContributors } from '../services/coalitions.js';
+import { buildCoalitionStandings, buildTopContributors, buildWeeklyPointsByCoalition, buildWeeklyTopContributors } from '../services/coalitions.js';
 import type { ProjectCompletion, RawCoalition, RawCoalitionUser, StudentSummary } from '../models/types.js';
 
 const NOW = new Date('2026-07-31T12:00:00.000Z');
@@ -101,6 +101,19 @@ describe('buildCoalitionStandings', () => {
       weeklyPoints: 250,
     });
     expect(standings.find((s) => s.id === 2)?.weeklyTopContributor).toBeNull();
+  });
+
+  it('attaches weeklyPoints from the provided map, defaulting to 0 when absent', () => {
+    const raw: RawCoalition[] = [
+      { id: 1, name: 'A', slug: 'a', score: 100 },
+      { id: 2, name: 'B', slug: 'b', score: 50 },
+    ];
+    const weeklyPointsByCoalition = new Map([[1, 340]]);
+
+    const standings = buildCoalitionStandings(raw, new Map(), new Map(), weeklyPointsByCoalition);
+
+    expect(standings.find((s) => s.id === 1)?.weeklyPoints).toBe(340);
+    expect(standings.find((s) => s.id === 2)?.weeklyPoints).toBe(0);
   });
 });
 
@@ -230,5 +243,71 @@ describe('buildWeeklyTopContributors', () => {
     const result = buildWeeklyTopContributors(coalitionUsers, students, [], 7, NOW);
 
     expect(result.size).toBe(0);
+  });
+});
+
+describe('buildWeeklyPointsByCoalition', () => {
+  it('sums weekly XP across every member of a coalition, not just the top one', () => {
+    const students = new Map([
+      [1, fakeStudent({ id: 1, login: 'a' })],
+      [2, fakeStudent({ id: 2, login: 'b' })],
+    ]);
+    const coalitionUsers: RawCoalitionUser[] = [
+      { id: 100, coalition_id: 459, user_id: 1, score: 10 },
+      { id: 101, coalition_id: 459, user_id: 2, score: 20 },
+    ];
+    const completions: ProjectCompletion[] = [
+      fakeCompletion({ studentId: 1, finalMark: 40 }),
+      fakeCompletion({ studentId: 2, finalMark: 60 }),
+    ];
+
+    const result = buildWeeklyPointsByCoalition(coalitionUsers, students, completions, 7, NOW);
+
+    expect(result.get(459)).toBe(100);
+  });
+
+  it('ignores users not in the campus roster', () => {
+    const students = new Map([[1, fakeStudent({ id: 1, login: 'a' })]]);
+    const coalitionUsers: RawCoalitionUser[] = [{ id: 100, coalition_id: 459, user_id: 999, score: 999999 }];
+    const completions: ProjectCompletion[] = [fakeCompletion({ studentId: 999, finalMark: 100 })];
+
+    const result = buildWeeklyPointsByCoalition(coalitionUsers, students, completions, 7, NOW);
+
+    expect(result.has(459)).toBe(false);
+  });
+
+  it('ignores completions outside the trailing window', () => {
+    const students = new Map([[1, fakeStudent({ id: 1, login: 'a' })]]);
+    const coalitionUsers: RawCoalitionUser[] = [{ id: 100, coalition_id: 459, user_id: 1, score: 10 }];
+    const staleDate = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const completions: ProjectCompletion[] = [fakeCompletion({ studentId: 1, finalMark: 100, completedAt: staleDate })];
+
+    const result = buildWeeklyPointsByCoalition(coalitionUsers, students, completions, 7, NOW);
+
+    expect(result.has(459)).toBe(false);
+  });
+
+  it('tracks separate totals per coalition_id', () => {
+    const students = new Map([
+      [1, fakeStudent({ id: 1, login: 'a' })],
+      [2, fakeStudent({ id: 2, login: 'b' })],
+    ]);
+    const coalitionUsers: RawCoalitionUser[] = [
+      { id: 100, coalition_id: 459, user_id: 1, score: 10 },
+      { id: 101, coalition_id: 458, user_id: 2, score: 20 },
+    ];
+    const completions: ProjectCompletion[] = [
+      fakeCompletion({ studentId: 1, finalMark: 40 }),
+      fakeCompletion({ studentId: 2, finalMark: 60 }),
+    ];
+
+    const result = buildWeeklyPointsByCoalition(coalitionUsers, students, completions, 7, NOW);
+
+    expect(result.get(459)).toBe(40);
+    expect(result.get(458)).toBe(60);
+  });
+
+  it('returns an empty map for empty input', () => {
+    expect(buildWeeklyPointsByCoalition([], new Map(), [], 7, NOW).size).toBe(0);
   });
 });

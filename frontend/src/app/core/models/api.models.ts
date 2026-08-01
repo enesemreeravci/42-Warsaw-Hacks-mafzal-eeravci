@@ -94,6 +94,10 @@ export interface CoalitionStanding {
   /** Null if no campus roster member of this coalition had any validated completions in the
    * trailing 7 days. */
   weeklyTopContributor: CoalitionWeeklyContributor | null;
+  /** Sum of every roster member's weekly XP credited to this coalition - "who's climbing
+   * fastest this week" at the coalition level. 0 if nobody had a validated completion in the
+   * trailing 7 days. */
+  weeklyPoints: number;
 }
 
 /** A recently-filled peer evaluation. `comment`/`feedback` are never fetched by the backend - see docs/LIMITATIONS.md. */
@@ -235,6 +239,10 @@ export interface WeeklyCampusActivityResponse {
   period: { start: string; end: string; timeZone: 'Europe/Warsaw' };
   mostCampusTime: WeeklyActivityStudent[];
   mostSessionsStarted: WeeklyActivityStudent[];
+  /** Ranked by time on campus within 00:00-06:00 Europe/Warsaw during the reporting period. */
+  nightOwls: WeeklyActivityStudent[];
+  /** Ranked by time on campus within 05:00-09:00 Europe/Warsaw during the reporting period. */
+  earlyBirds: WeeklyActivityStudent[];
   summary: WeeklyCampusActivitySummary;
   meta: WeeklyCampusActivityMeta;
 }

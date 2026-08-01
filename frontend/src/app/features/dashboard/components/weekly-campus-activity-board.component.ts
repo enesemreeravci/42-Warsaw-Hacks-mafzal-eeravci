@@ -6,7 +6,27 @@ import { AvatarComponent } from '../../../shared/components/avatar/avatar.compon
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { formatMinutesAsHoursAndMinutes, formatWarsawDateRange, formatWarsawTime } from '../weekly-campus-activity.utils';
 
-export type WeeklyActivityMetric = 'time' | 'sessions';
+export type WeeklyActivityMetric = 'time' | 'sessions' | 'nightOwls' | 'earlyBirds';
+
+/** 'sessions' ranks by session count with time as the secondary stat; every other metric
+ * ('time', and the two campus-time-in-a-window variants 'nightOwls'/'earlyBirds') ranks by time
+ * on campus with session count as the secondary stat. */
+function isTimePrimary(metric: WeeklyActivityMetric): boolean {
+  return metric !== 'sessions';
+}
+
+function studentsForMetric(activity: WeeklyCampusActivityResponse, metric: WeeklyActivityMetric): WeeklyActivityStudent[] {
+  switch (metric) {
+    case 'time':
+      return activity.mostCampusTime;
+    case 'sessions':
+      return activity.mostSessionsStarted;
+    case 'nightOwls':
+      return activity.nightOwls;
+    case 'earlyBirds':
+      return activity.earlyBirds;
+  }
+}
 
 interface RankedEntry {
   student: WeeklyActivityStudent;
@@ -74,7 +94,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
                 ></canvas>
                 <div class="board__chart-center">
                   <span class="board__chart-total">{{ totalLabel() }}</span>
-                  <span class="board__chart-sub">{{ metric() === 'time' ? 'Top 5 time' : 'Top 5 sessions' }}</span>
+                  <span class="board__chart-sub">{{ chartSubLabel() }}</span>
                 </div>
               </div>
 
@@ -125,8 +145,8 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
                 <span>#</span>
                 <span></span>
                 <span>Name</span>
-                <span>{{ metric() === 'time' ? 'Campus Time' : 'Sessions' }}</span>
-                <span class="board__rest-hide">{{ metric() === 'time' ? 'Sessions' : 'Campus Time' }}</span>
+                <span>{{ rankedEntries()[0]?.primaryLabel }}</span>
+                <span class="board__rest-hide">{{ rankedEntries()[0]?.secondaryLabel }}</span>
                 <span class="board__rest-hide">Avg Session</span>
               </div>
               @for (entry of listEntries(); track entry.student.userId) {
@@ -437,10 +457,20 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     :host-context(.dashboard--tv) .podium-slot--silver .podium-slot__platform { height: 60px; }
     :host-context(.dashboard--tv) .podium-slot--bronze .podium-slot__platform { height: 40px; }
 
-    :host-context(.dashboard--tv) .board__title         { font-size: 2.4rem; }
-    :host-context(.dashboard--tv) .board__chart-total   { font-size: 1.7rem; }
+    /* TV mode — the section's identity ("Most Campus Time" / "Most Recent Session Started") is
+     * shown once in the unified TV header bar instead of repeating it on the card. The "last
+     * updated"/range meta line stays, since it's live info rather than a redundant label. */
+    :host-context(.dashboard--tv) .board__title { display: none; }
+
+    :host-context(.dashboard--tv) .board__chart-total   { font-size: 2.1rem; }
     :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }
     :host-context(.dashboard--tv) .podium-slot--gold .podium-slot__primary { font-size: 2rem; }
+
+    /* TV mode — the donut is far too small at the default 168px on a big screen; give it real
+     * presence, matching the enlarged podium/avatar sizing around it. The overview column has to
+     * widen too, or .board__content's grid track would just clip the bigger chart back down. */
+    :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; }
+    :host-context(.dashboard--tv) .board__content { grid-template-columns: minmax(180px, 360px) 1fr; }
 
     /* Ranks 4+ list ─────────────────────────────────────────────── */
     .board__rest {
@@ -579,7 +609,7 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly state = computed<BoardState>(() => {
     const activity = this.activity();
     if (!activity) return this.loadError() ? 'error' : 'loading';
-    const students = this.metric() === 'time' ? activity.mostCampusTime : activity.mostSessionsStarted;
+    const students = studentsForMetric(activity, this.metric());
     return students.length === 0 ? 'empty' : 'ready';
   });
 
@@ -599,15 +629,16 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly rankedEntries = computed<RankedEntry[]>(() => {
     const activity = this.activity();
     if (!activity) return [];
-    const students = this.metric() === 'time' ? activity.mostCampusTime : activity.mostSessionsStarted;
     const metric = this.metric();
+    const students = studentsForMetric(activity, metric);
+    const timePrimary = isTimePrimary(metric);
     return students.slice(0, VISIBLE_COUNT).map((student, index) => ({
       student,
       rank: index + 1,
-      primaryValue: metric === 'time' ? formatMinutesAsHoursAndMinutes(student.totalMinutes) : String(student.sessionCount),
-      primaryLabel: metric === 'time' ? 'Campus time' : 'Sessions started',
-      secondaryValue: metric === 'time' ? String(student.sessionCount) : formatMinutesAsHoursAndMinutes(student.totalMinutes),
-      secondaryLabel: metric === 'time' ? 'sessions' : 'campus time',
+      primaryValue: timePrimary ? formatMinutesAsHoursAndMinutes(student.totalMinutes) : String(student.sessionCount),
+      primaryLabel: timePrimary ? 'Campus time' : 'Sessions started',
+      secondaryValue: timePrimary ? String(student.sessionCount) : formatMinutesAsHoursAndMinutes(student.totalMinutes),
+      secondaryLabel: timePrimary ? 'sessions' : 'campus time',
       averageLabel: formatMinutesAsHoursAndMinutes(student.averageSessionMinutes),
       color: RANK_COLORS[index] ?? '#888',
     }));
@@ -627,7 +658,7 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly totalLabel = computed(() => {
     const entries = this.rankedEntries();
     if (entries.length === 0) return '—';
-    if (this.metric() === 'time') {
+    if (isTimePrimary(this.metric())) {
       return formatMinutesAsHoursAndMinutes(entries.reduce((s, e) => s + e.student.totalMinutes, 0));
     }
     return String(entries.reduce((s, e) => s + e.student.sessionCount, 0));
@@ -645,14 +676,27 @@ export class WeeklyCampusActivityBoardComponent {
     ];
   });
 
+  protected readonly chartSubLabel = computed(() => {
+    switch (this.metric()) {
+      case 'time':
+        return 'Top 5 time';
+      case 'sessions':
+        return 'Top 5 sessions';
+      case 'nightOwls':
+        return 'Top 5 night hours';
+      case 'earlyBirds':
+        return 'Top 5 morning hours';
+    }
+  });
+
   protected readonly chartData = computed<ChartConfiguration<'doughnut'>['data']>(() => {
     const entries = this.rankedEntries();
-    const metric = this.metric();
+    const timePrimary = isTimePrimary(this.metric());
     return {
       labels: entries.map((e) => e.student.displayName),
       datasets: [
         {
-          data: entries.map((e) => (metric === 'time' ? e.student.totalMinutes : e.student.sessionCount)),
+          data: entries.map((e) => (timePrimary ? e.student.totalMinutes : e.student.sessionCount)),
           backgroundColor: entries.map((e) => e.color),
           borderColor: 'rgba(6, 8, 10, 0.7)',
           borderWidth: 2,

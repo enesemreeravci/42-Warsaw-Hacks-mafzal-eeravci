@@ -24,8 +24,6 @@ interface CoalitionCard {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="leaderboard">
-      <h2 class="leaderboard__title">Coalition leaderboard</h2>
-
       @if (cards().length === 0) {
         <app-empty-state title="No coalition data" description="Coalition standings will appear here once scores are available." />
       } @else {
@@ -45,7 +43,7 @@ interface CoalitionCard {
                 <app-avatar
                   [imageUrl]="leader.standing.topContributor?.imageUrl ?? null"
                   [name]="leader.standing.topContributor?.displayName ?? leader.standing.name"
-                  [size]="112"
+                  [size]="168"
                 />
                 <p class="leaderboard__center-name">{{ leader.standing.topContributor?.displayName ?? 'No contributor yet' }}</p>
                 @if (leader.standing.topContributor; as top) {
@@ -129,13 +127,6 @@ interface CoalitionCard {
       height: 100%;
     }
 
-    .leaderboard__title {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-    }
-
     .leaderboard__body {
       flex: 1;
       min-height: 60vh;
@@ -155,7 +146,7 @@ interface CoalitionCard {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 280px;
+      min-height: 380px;
     }
 
     .leaderboard__chart-wrap::before {
@@ -200,7 +191,7 @@ interface CoalitionCard {
 
     .leaderboard__center-name {
       margin: var(--space-2) 0 0;
-      font-size: 1.1rem;
+      font-size: 1.3rem;
       font-weight: 800;
       max-width: 14ch;
       text-align: center;
@@ -209,7 +200,7 @@ interface CoalitionCard {
 
     .leaderboard__center-score {
       margin: 0;
-      font-size: 1rem;
+      font-size: 1.15rem;
       font-weight: 800;
       color: var(--color-warn);
     }
@@ -442,7 +433,7 @@ export class CoalitionLeaderboardComponent {
   protected readonly chartOptions: ChartConfiguration<'doughnut'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '74%',
+    cutout: '60%',
     animation: { duration: 500 },
     plugins: {
       legend: { display: false },

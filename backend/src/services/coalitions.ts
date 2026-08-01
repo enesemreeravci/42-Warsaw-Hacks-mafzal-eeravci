@@ -81,6 +81,7 @@ export function buildCoalitionStandings(
   raw: RawCoalition[],
   topContributors: Map<number, CoalitionTopContributor> = new Map(),
   weeklyTopContributors: Map<number, CoalitionWeeklyContributor> = new Map(),
+  weeklyPointsByCoalition: Map<number, number> = new Map(),
 ): CoalitionStanding[] {
   return [...raw]
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
@@ -94,5 +95,34 @@ export function buildCoalitionStandings(
       rank: index + 1,
       topContributor: topContributors.get(coalition.id) ?? null,
       weeklyTopContributor: weeklyTopContributors.get(coalition.id) ?? null,
+      weeklyPoints: weeklyPointsByCoalition.get(coalition.id) ?? 0,
     }));
+}
+
+/**
+ * Sums every roster member's weekly XP (see livePulse.ts computeWeeklyXpByStudent) per
+ * coalition_id - "Weekly Top Coalitions" ranks coalitions by this total, complementing the
+ * single-student spotlight in buildWeeklyTopContributors() and the all-time score in
+ * buildCoalitionStandings(). Recomputes weekly XP independently rather than sharing
+ * buildWeeklyTopContributors()'s internal map, to avoid changing that function's existing
+ * (tested) signature for an internal-only optimization.
+ */
+export function buildWeeklyPointsByCoalition(
+  coalitionUsers: RawCoalitionUser[],
+  studentsById: Map<number, StudentSummary>,
+  completions: ProjectCompletion[],
+  days: number,
+  referenceDate: Date,
+): Map<number, number> {
+  const weeklyByStudent = computeWeeklyXpByStudent(completions, days, referenceDate);
+  const totals = new Map<number, number>();
+
+  for (const cu of coalitionUsers) {
+    if (!studentsById.has(cu.user_id)) continue; // campus-roster scoping, same as the builders above
+    const weekly = weeklyByStudent.get(cu.user_id);
+    if (!weekly) continue;
+    totals.set(cu.coalition_id, (totals.get(cu.coalition_id) ?? 0) + weekly.weeklyXp);
+  }
+
+  return totals;
 }

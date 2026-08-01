@@ -149,10 +149,7 @@
               <app-achievement-spotlight [achievements]="store.data().livePulse?.achievements ?? []" />
             }
             @case (2) {
-              <app-xp-race-blackhole
-                [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []"
-                [blackHoleWatch]="store.data().livePulse?.blackHoleWatch ?? []"
-              />
+              <app-xp-race-blackhole [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []" />
             }
             @case (3) {
               <app-coalition-leaderboard [standings]="store.data().coalitions" />
@@ -177,9 +174,28 @@
               />
             }
             @case (7) {
-              <app-transcendence-completed-showcase />
+              <app-weekly-campus-activity-board
+                title="Night Owls — Last 7 Days"
+                metric="nightOwls"
+                [activity]="store.data().weeklyCampusActivity"
+                [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+              />
             }
             @case (8) {
+              <app-weekly-campus-activity-board
+                title="Early Birds — Last 7 Days"
+                metric="earlyBirds"
+                [activity]="store.data().weeklyCampusActivity"
+                [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+              />
+            }
+            @case (9) {
+              <app-weekly-top-coalitions [standings]="store.data().coalitions" />
+            }
+            @case (10) {
+              <app-transcendence-completed-showcase />
+            }
+            @case (11) {
               <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
             }
           }

@@ -16,7 +16,7 @@ import type {
   StudentSummary,
 } from '../models/types.js';
 import { TtlCache, type CacheGetResult } from '../utils/cache.js';
-import { buildCoalitionStandings, buildTopContributors, buildWeeklyTopContributors } from './coalitions.js';
+import { buildCoalitionStandings, buildTopContributors, buildWeeklyPointsByCoalition, buildWeeklyTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
 import { buildUpcomingEvents, type CampusEvent } from './events.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary, selectCursusRecord } from './normalize.js';
@@ -285,8 +285,15 @@ export class DataService {
         WEEKLY_TOP_CONTRIBUTOR_DAYS,
         new Date(),
       );
+      const weeklyPointsByCoalition = buildWeeklyPointsByCoalition(
+        coalitionUsers,
+        studentsById,
+        data.completions,
+        WEEKLY_TOP_CONTRIBUTOR_DAYS,
+        new Date(),
+      );
 
-      return buildCoalitionStandings(raw, topContributors, weeklyTopContributors);
+      return buildCoalitionStandings(raw, topContributors, weeklyTopContributors, weeklyPointsByCoalition);
     });
     return result.value as CoalitionStanding[];
   }

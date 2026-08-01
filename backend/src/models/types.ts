@@ -174,6 +174,11 @@ export interface CoalitionStanding {
   /** Null if no campus roster member of this coalition had any validated completions in the
    * trailing 7 days. */
   weeklyTopContributor: CoalitionWeeklyContributor | null;
+  /** Sum of every roster member's weekly XP (see livePulse.ts computeWeeklyXpByStudent) credited
+   * to this coalition - "who's climbing fastest this week" at the coalition level, distinct from
+   * `score` (all-time) and `weeklyTopContributor` (a single student). 0 if nobody in the
+   * coalition had a validated completion in the trailing 7 days. */
+  weeklyPoints: number;
 }
 
 /**

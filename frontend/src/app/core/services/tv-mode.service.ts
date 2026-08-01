@@ -1,11 +1,29 @@
 import { Injectable, computed, signal } from '@angular/core';
 
 const DEFAULT_ROTATION_SECONDS = 15;
-/** The Hive, the Level-Up Spotlight, the XP Race / Black Hole tracker, the Coalition
- * Leaderboard, Live Evaluations, the two Weekly Campus Activity rankings (Most Campus Time,
- * Most Sessions Started), the Transcendence Completed showcase, and - last, closing out every
- * loop - the Robot Achievement Showcase. */
-const DASHBOARD_SECTION_COUNT = 9;
+/** The Hive, the Level-Up Spotlight, Weekly Experience, the Coalition Leaderboard, Live
+ * Evaluations, the two Weekly Campus Activity rankings (Most Campus Time, Most Recent Session
+ * Started), Night Owls, Early Birds, Weekly Top Coalitions, the Transcendence Completed
+ * showcase, and - last, closing out every loop - the Robot Achievement Showcase. Index-matched
+ * to SECTION_TITLES below. */
+const DASHBOARD_SECTION_COUNT = 12;
+
+/** Short section names, index-matched to `activeSection`, shown in the unified TV header bar
+ * (see app.html) instead of each section rendering its own in-card title. */
+const SECTION_TITLES: readonly string[] = [
+  'The Hive',
+  'Recently Completed',
+  'Weekly Experience',
+  'Coalition Leaderboard',
+  'Live Evaluations',
+  'Most Campus Time',
+  'Most Recent Session Started',
+  'Night Owls',
+  'Early Birds',
+  'Weekly Top Coalitions',
+  'Transcendence Completed',
+  'Achievement Unlock',
+];
 
 /** Holds TV-mode UI state: on/off, section rotation index, rotation interval, and whether the
  * one-time robot welcome intro (typewriter greeting) has finished. */
@@ -27,6 +45,12 @@ export class TvModeService {
   readonly introComplete = this.introCompleteSignal.asReadonly();
 
   readonly rotationProgressLabel = computed(() => `Section ${this.activeSectionSignal() + 1} of ${DASHBOARD_SECTION_COUNT}`);
+
+  /** The name of whichever section is currently on screen, for the unified TV header bar.
+   * "Welcome" while the robot's intro is still playing, since no rotation section is active yet. */
+  readonly currentSectionTitle = computed(() =>
+    this.introCompleteSignal() ? (SECTION_TITLES[this.activeSectionSignal()] ?? '') : 'Welcome',
+  );
 
   toggle(): void {
     const next = !this.enabledSignal();

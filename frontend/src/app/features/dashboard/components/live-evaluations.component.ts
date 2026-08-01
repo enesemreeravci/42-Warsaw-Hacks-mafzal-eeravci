@@ -16,8 +16,6 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="evaluations">
-      <h2 class="evaluations__title">Live evaluations</h2>
-
       @if (evaluations().length === 0) {
         <app-empty-state title="No recent evaluations" description="Completed peer evaluations will appear here as they're filled in." />
       } @else {
@@ -52,13 +50,6 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
       flex-direction: column;
       height: 100%;
       gap: var(--space-5);
-    }
-
-    .evaluations__title {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
     }
 
     .evaluations__viewport {

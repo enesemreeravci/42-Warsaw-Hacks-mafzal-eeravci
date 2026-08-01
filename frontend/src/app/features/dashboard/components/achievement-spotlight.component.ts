@@ -12,8 +12,6 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="spotlight">
-      <h2 class="spotlight__title">Recently completed</h2>
-
       @if (achievements().length === 0) {
         <app-empty-state title="No recent completions" description="Validated project completions will appear here as they happen." />
       } @else {
@@ -43,13 +41,6 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
       flex-direction: column;
       height: 100%;
       gap: var(--space-5);
-    }
-
-    .spotlight__title {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
     }
 
     .spotlight__viewport {

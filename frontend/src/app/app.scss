@@ -161,10 +161,22 @@
 .tv-bar__title {
   font-weight: 700;
   color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/** Fills the gap between the title and the clock, so it reads as centered in the middle of the
+ * bar. Swapped dynamically by TvModeService.currentSectionTitle() as the TV rotation advances. */
+.tv-bar__section {
+  flex: 1;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.3rem;
+  letter-spacing: 0.01em;
+  color: var(--color-accent-strong);
+  text-shadow: 0 0 18px rgba(52, 226, 196, 0.3);
 }
 
 .tv-bar__clock {
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-size: 1.2rem;
   color: var(--color-accent);

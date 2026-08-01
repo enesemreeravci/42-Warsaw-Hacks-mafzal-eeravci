@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateWeeklyActivity,
+  aggregateWindowActivity,
   buildValidStudentIds,
   buildWeeklyCampusActivity,
   calculateSessionOverlapMs,
+  EARLY_BIRD_WINDOW,
   formatMinutesAsHoursAndMinutes,
   getLastSevenDaysRange,
+  NIGHT_OWL_WINDOW,
   rankByCampusTime,
   rankBySessionCount,
 } from '../services/weeklyCampusActivity.js';
@@ -149,6 +152,76 @@ describe('aggregateWeeklyActivity', () => {
   });
 });
 
+describe('aggregateWindowActivity', () => {
+  // Warsaw is UTC+2 in late July (CEST), so local 02:00-04:00 on the 30th is 00:00-02:00Z.
+  const nightOwlSession = fakeLocation({
+    id: 1,
+    user: fakeUser({ id: 1 }),
+    begin_at: '2026-07-30T00:00:00.000Z',
+    end_at: '2026-07-30T02:00:00.000Z',
+  });
+  // Local 06:00-07:00 -> 04:00-05:00Z: inside EARLY_BIRD_WINDOW (5-9 local), outside NIGHT_OWL_WINDOW (0-6 local).
+  const earlyBirdSession = fakeLocation({
+    id: 2,
+    user: fakeUser({ id: 2 }),
+    begin_at: '2026-07-30T04:00:00.000Z',
+    end_at: '2026-07-30T05:00:00.000Z',
+  });
+  // Local 10:00-12:00 -> a normal daytime session, outside both windows entirely.
+  const daytimeSession = fakeLocation({
+    id: 3,
+    user: fakeUser({ id: 3 }),
+    begin_at: '2026-07-30T08:00:00.000Z',
+    end_at: '2026-07-30T10:00:00.000Z',
+  });
+
+  it('counts a session that falls entirely inside the night-owl window', () => {
+    const result = aggregateWindowActivity([nightOwlSession], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ userId: 1, totalMinutes: 120, sessionCount: 1 });
+  });
+
+  it('excludes a session outside the night-owl window entirely', () => {
+    const result = aggregateWindowActivity([daytimeSession], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW);
+    expect(result).toEqual([]);
+  });
+
+  it('counts a session that falls entirely inside the early-bird window, and not the night-owl one', () => {
+    const earlyBirdResult = aggregateWindowActivity([earlyBirdSession], { start: RANGE_START, end: RANGE_END }, NOW, EARLY_BIRD_WINDOW);
+    expect(earlyBirdResult[0]).toMatchObject({ userId: 2, totalMinutes: 60, sessionCount: 1 });
+
+    const nightOwlResult = aggregateWindowActivity([earlyBirdSession], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW);
+    expect(nightOwlResult).toEqual([]);
+  });
+
+  it('only counts the overlapping slice of a session that spans into and out of the window', () => {
+    // Local 04:00-07:00 -> 02:00-05:00Z: 2h inside NIGHT_OWL_WINDOW (0-6), only 1h of it.
+    const spanningSession = fakeLocation({
+      id: 4,
+      user: fakeUser({ id: 4 }),
+      begin_at: '2026-07-30T02:00:00.000Z',
+      end_at: '2026-07-30T05:00:00.000Z',
+    });
+    const result = aggregateWindowActivity([spanningSession], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW);
+    expect(result[0]).toMatchObject({ totalMinutes: 120 }); // 04:00-06:00 local is the overlap
+  });
+
+  it('sums multiple nights within the reporting period for the same student', () => {
+    const secondNight = fakeLocation({
+      id: 5,
+      user: fakeUser({ id: 1 }),
+      begin_at: '2026-07-29T00:00:00.000Z',
+      end_at: '2026-07-29T01:00:00.000Z',
+    });
+    const result = aggregateWindowActivity([nightOwlSession, secondNight], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW);
+    expect(result[0]).toMatchObject({ userId: 1, totalMinutes: 180, sessionCount: 2 });
+  });
+
+  it('returns an empty array for empty input', () => {
+    expect(aggregateWindowActivity([], { start: RANGE_START, end: RANGE_END }, NOW, NIGHT_OWL_WINDOW)).toEqual([]);
+  });
+});
+
 function internalStudent(overrides: Partial<{ userId: number; login: string; totalMs: number; sessionCount: number }>) {
   return {
     userId: overrides.userId ?? 1,
@@ -258,7 +331,31 @@ describe('buildWeeklyCampusActivity', () => {
 
     expect(result.mostCampusTime).toEqual([]);
     expect(result.mostSessionsStarted).toEqual([]);
+    expect(result.nightOwls).toEqual([]);
+    expect(result.earlyBirds).toEqual([]);
     expect(result.summary.uniqueActiveStudents).toBe(0);
+  });
+
+  it('populates nightOwls/earlyBirds from the same location set, restricted to their windows', () => {
+    const locations: RawLocation[] = [
+      // Local 02:00-04:00 -> night owl only.
+      fakeLocation({ id: 1, user: fakeUser({ id: 1 }), begin_at: '2026-07-30T00:00:00.000Z', end_at: '2026-07-30T02:00:00.000Z' }),
+      // Local 10:00-12:00 -> neither window, but still counted in mostCampusTime.
+      fakeLocation({ id: 2, user: fakeUser({ id: 2 }), begin_at: '2026-07-30T08:00:00.000Z', end_at: '2026-07-30T10:00:00.000Z' }),
+    ];
+
+    const result = buildWeeklyCampusActivity({
+      cursusUsers,
+      locations,
+      campusId: CAMPUS_ID,
+      cursusId: CURSUS_ID,
+      period: { start: RANGE_START, end: RANGE_END },
+      now: NOW,
+    });
+
+    expect(result.nightOwls.map((s) => s.userId)).toEqual([1]);
+    expect(result.earlyBirds).toEqual([]);
+    expect(result.mostCampusTime.map((s) => s.userId).sort()).toEqual([1, 2]);
   });
 
   it('includes the begin_at-range API limitation in meta, and correct campus/cursus IDs', () => {

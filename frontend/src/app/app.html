@@ -78,6 +78,7 @@
   } @else {
     <div class="tv-bar">
       <span class="tv-bar__title">42 Warsaw &middot; Learning Progress Insight</span>
+      <span class="tv-bar__section">{{ tvMode.currentSectionTitle() }}</span>
       <span class="tv-bar__clock">{{ clockLabel() }}</span>
       <button mat-icon-button type="button" matTooltip="Exit TV mode (T)" aria-label="Exit TV mode" (click)="toggleTvMode()">
         <mat-icon>close_fullscreen</mat-icon>

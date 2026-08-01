@@ -25,6 +25,7 @@ import { TopStudentsByLevelComponent } from './components/top-students-by-level.
 import { TranscendenceCompletedShowcaseComponent } from './components/transcendence-completed-showcase.component';
 import { UpcomingEventsComponent } from './components/upcoming-events.component';
 import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
+import { WeeklyTopCoalitionsComponent } from './components/weekly-top-coalitions.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
 const NARRATOR_ROTATION_MS = 6500;
@@ -59,6 +60,9 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'evaluations', color: '#4cc9f0', text: 'Freshly filled peer evaluations.' },
   { id: 'weekly-campus-time', color: '#4cc9f0', text: 'These students spent the most time working from campus this week.' },
   { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
+  { id: 'night-owls', color: '#be2ad1', text: 'Who was on campus deepest into the night this week.' },
+  { id: 'early-birds', color: '#4cc9f0', text: 'Who showed up earliest on campus this week.' },
+  { id: 'weekly-top-coalitions', color: '#38e19a', text: "Which coalition is climbing fastest this week." },
   { id: 'transcendence', color: '#be2ad1', text: 'Celebrating every student who reached Transcendence.' },
   { id: 'showcase', color: '#34e2c4', text: "Saving the best for last - today's top achievements." },
 ];
@@ -87,6 +91,7 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     NarratorRobotComponent,
     NarratorTargetDirective,
     WeeklyCampusActivityBoardComponent,
+    WeeklyTopCoalitionsComponent,
     UpcomingEventsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

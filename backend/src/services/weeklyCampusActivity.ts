@@ -57,6 +57,11 @@ export interface WeeklyCampusActivityResponse {
   period: { start: string; end: string; timeZone: typeof WEEKLY_ACTIVITY_TIMEZONE };
   mostCampusTime: WeeklyActivityStudent[];
   mostSessionsStarted: WeeklyActivityStudent[];
+  /** Ranked by time spent on campus within the NIGHT_OWL_WINDOW (00:00-06:00 Europe/Warsaw)
+   * during the reporting period - only the portion of each session inside that window counts. */
+  nightOwls: WeeklyActivityStudent[];
+  /** Same as `nightOwls`, but for EARLY_BIRD_WINDOW (05:00-09:00 Europe/Warsaw). */
+  earlyBirds: WeeklyActivityStudent[];
   summary: WeeklyCampusActivitySummary;
   meta: WeeklyCampusActivityMeta;
 }
@@ -174,7 +179,18 @@ export function aggregateWeeklyActivity(locations: RawLocation[], period: Report
     }
   }
 
-  const students: WeeklyActivityStudentInternal[] = Array.from(byUser.values()).map((acc) => {
+  const students = accumulatorsToStudents(byUser);
+
+  const totalCampusMinutes = students.reduce((sum, s) => sum + s.totalMinutes, 0);
+  const totalSessions = students.reduce((sum, s) => sum + s.sessionCount, 0);
+
+  return { students, locationRecordsProcessed: processed, totalCampusMinutes, totalSessions };
+}
+
+/** Shared tail of aggregateWeeklyActivity()/aggregateWindowActivity(): collapses the accumulator
+ * map into the public-shaped (well, still internal - totalMs-carrying) per-student list. */
+function accumulatorsToStudents(byUser: Map<number, Accumulator>): WeeklyActivityStudentInternal[] {
+  return Array.from(byUser.values()).map((acc) => {
     const totalMinutes = Math.round(acc.totalMs / 60_000);
     return {
       userId: acc.user.id,
@@ -189,11 +205,105 @@ export function aggregateWeeklyActivity(locations: RawLocation[], period: Report
       uniqueHostCount: acc.hosts.size,
     };
   });
+}
 
-  const totalCampusMinutes = students.reduce((sum, s) => sum + s.totalMinutes, 0);
-  const totalSessions = students.reduce((sum, s) => sum + s.sessionCount, 0);
+/** A daily local-time-of-day window (Europe/Warsaw wall-clock), e.g. "00:00-06:00". `endHour`
+ * must be greater than `startHour` - neither window used here (Night Owls, Early Birds) wraps
+ * past midnight, so overnight-wrap handling was left out rather than built and left untested. */
+export interface DailyHourWindow {
+  startHour: number;
+  endHour: number;
+}
 
-  return { students, locationRecordsProcessed: processed, totalCampusMinutes, totalSessions };
+export const NIGHT_OWL_WINDOW: DailyHourWindow = { startHour: 0, endHour: 6 };
+export const EARLY_BIRD_WINDOW: DailyHourWindow = { startHour: 5, endHour: 9 };
+
+const WARSAW_PARTS_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: WEEKLY_ACTIVITY_TIMEZONE,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+/** Warsaw's UTC offset, in minutes, at `instant` - positive east of UTC (60 for CET, 120 for
+ * CEST). Computed via Intl (handles the DST transition automatically) rather than a hardcoded,
+ * DST-unaware constant, since campus activity runs on local wall-clock time year-round. */
+function warsawOffsetMinutesAt(instant: Date): number {
+  const parts = WARSAW_PARTS_FORMATTER.formatToParts(instant);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  const asIfUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return Math.round((asIfUtc - instant.getTime()) / 60_000);
+}
+
+/** Every local calendar-day instance of `window` (Europe/Warsaw wall-clock) that could overlap
+ * `period`, as UTC instants - the scan starts one day before `period` and ends one day after it,
+ * so a window instance straddling either edge is never missed. */
+function localWindowInstancesUtc(period: ReportingPeriod, window: DailyHourWindow): Array<{ start: Date; end: Date }> {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const instances: Array<{ start: Date; end: Date }> = [];
+
+  for (let cursor = period.start.getTime() - DAY_MS; cursor <= period.end.getTime() + DAY_MS; cursor += DAY_MS) {
+    const offsetMinutes = warsawOffsetMinutesAt(new Date(cursor));
+    const local = new Date(cursor + offsetMinutes * 60_000);
+    const y = local.getUTCFullYear();
+    const m = local.getUTCMonth();
+    const d = local.getUTCDate();
+    instances.push({
+      start: new Date(Date.UTC(y, m, d, window.startHour) - offsetMinutes * 60_000),
+      end: new Date(Date.UTC(y, m, d, window.endHour) - offsetMinutes * 60_000),
+    });
+  }
+
+  return instances;
+}
+
+/**
+ * Same per-user aggregation as aggregateWeeklyActivity(), but only the portion of each session
+ * that falls inside one of `window`'s local daily instances counts - e.g. only the midnight-6am
+ * slice of an all-night session, not the whole session. Backs the Night Owls/Early Birds
+ * rankings.
+ */
+export function aggregateWindowActivity(
+  locations: RawLocation[],
+  period: ReportingPeriod,
+  now: Date,
+  window: DailyHourWindow,
+): WeeklyActivityStudentInternal[] {
+  const windowInstances = localWindowInstancesUtc(period, window);
+  const byUser = new Map<number, Accumulator>();
+
+  for (const location of locations) {
+    if (typeof location?.id !== 'number' || !location.begin_at) continue;
+    const user = normalizeLocationUser(location.user);
+    if (!user) continue;
+
+    let overlapMs = 0;
+    for (const instance of windowInstances) {
+      const clippedStart = new Date(Math.max(instance.start.getTime(), period.start.getTime()));
+      const clippedEnd = new Date(Math.min(instance.end.getTime(), period.end.getTime()));
+      if (clippedStart >= clippedEnd) continue;
+      overlapMs += calculateSessionOverlapMs(location.begin_at, location.end_at, clippedStart, clippedEnd, now);
+    }
+    if (overlapMs <= 0) continue;
+
+    const host = typeof location.host === 'string' && location.host.length > 0 ? location.host : null;
+    const existing = byUser.get(user.id);
+    if (existing) {
+      existing.totalMs += overlapMs;
+      existing.sessionCount += 1;
+      if (host) existing.hosts.add(host);
+    } else {
+      const hosts = new Set<string>();
+      if (host) hosts.add(host);
+      byUser.set(user.id, { user, totalMs: overlapMs, sessionCount: 1, hosts });
+    }
+  }
+
+  return accumulatorsToStudents(byUser);
 }
 
 function toPublicStudent(student: WeeklyActivityStudentInternal): WeeklyActivityStudent {
@@ -250,10 +360,15 @@ export function buildWeeklyCampusActivity(params: BuildWeeklyCampusActivityParam
 
   const { students, locationRecordsProcessed, totalCampusMinutes, totalSessions } = aggregateWeeklyActivity(validLocations, period, now);
 
+  const nightOwlStudents = aggregateWindowActivity(validLocations, period, now, NIGHT_OWL_WINDOW);
+  const earlyBirdStudents = aggregateWindowActivity(validLocations, period, now, EARLY_BIRD_WINDOW);
+
   return {
     period: { start: period.start.toISOString(), end: period.end.toISOString(), timeZone: WEEKLY_ACTIVITY_TIMEZONE },
     mostCampusTime: rankByCampusTime(students, limit).map(toPublicStudent),
     mostSessionsStarted: rankBySessionCount(students, limit).map(toPublicStudent),
+    nightOwls: rankByCampusTime(nightOwlStudents, limit).map(toPublicStudent),
+    earlyBirds: rankByCampusTime(earlyBirdStudents, limit).map(toPublicStudent),
     summary: {
       validStudents: validStudentIds.size,
       locationRecordsProcessed,

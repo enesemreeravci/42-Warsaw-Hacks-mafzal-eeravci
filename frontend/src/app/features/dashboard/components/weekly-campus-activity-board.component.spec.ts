@@ -22,6 +22,8 @@ function fakeActivity(overrides: Partial<WeeklyCampusActivityResponse> = {}): We
     period: { start: '2026-07-24T12:00:00.000Z', end: '2026-07-31T12:00:00.000Z', timeZone: 'Europe/Warsaw' },
     mostCampusTime: [],
     mostSessionsStarted: [],
+    nightOwls: [],
+    earlyBirds: [],
     summary: { validStudents: 0, locationRecordsProcessed: 0, uniqueActiveStudents: 0, totalCampusMinutes: 0, totalSessions: 0 },
     meta: { campusId: 67, cursusId: 21, source: '42-api', lastUpdated: '2026-07-31T12:00:00.000Z', limitation: '' },
     ...overrides,

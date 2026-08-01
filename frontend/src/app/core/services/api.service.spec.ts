@@ -106,6 +106,8 @@ describe('ApiService', () => {
         period: { start: 'now', end: 'now', timeZone: 'Europe/Warsaw' },
         mostCampusTime: [],
         mostSessionsStarted: [],
+        nightOwls: [],
+        earlyBirds: [],
         summary: { validStudents: 0, locationRecordsProcessed: 0, uniqueActiveStudents: 0, totalCampusMinutes: 0, totalSessions: 0 },
         meta: { campusId: 67, cursusId: 21, source: '42-api', lastUpdated: 'now', limitation: '' },
       },
