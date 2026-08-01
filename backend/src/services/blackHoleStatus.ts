@@ -33,11 +33,18 @@ export function classifyStatus(daysRemaining: number): BlackHoleStatusCategory {
   return 'safe';
 }
 
+export interface BlackHoleFilters {
+  loginSearch?: string | null;
+  minLevel?: number | null;
+  maxLevel?: number | null;
+}
+
 /**
  * Builds the black hole status response from the current campus roster.
  *
  * `upcomingDays`  — window for the "Closest to Black Hole" list (default 30).
  * `recentDays`    — lookback window for the "Recently Black Holed" list (default 30).
+ * `filters`       — optional login/level filters applied before categorisation.
  *
  * Students whose `blackholedAt` is null (no black hole date or not applicable) are counted in
  * `excludedCount` and omitted from both lists — they are not black-holed; the absence of a date
@@ -49,12 +56,26 @@ export function buildBlackHoleStatus(
   cursusId: number,
   upcomingDays = 30,
   recentDays = 30,
+  filters: BlackHoleFilters = {},
 ): BlackHoleStatusResponse {
+  const loginSearchLower = filters.loginSearch?.toLowerCase().trim() || null;
+  const minLevel = filters.minLevel ?? null;
+  const maxLevel = filters.maxLevel ?? null;
+
   let excludedCount = 0;
   const upcoming: BlackHoleUpcomingEntry[] = [];
   const recentlyBlackHoled: BlackHoleRecentEntry[] = [];
 
   for (const student of students) {
+    // Apply user-specified filters first — these do not affect excludedCount
+    if (loginSearchLower &&
+        !student.login.toLowerCase().includes(loginSearchLower) &&
+        !student.displayName.toLowerCase().includes(loginSearchLower)) {
+      continue;
+    }
+    if (minLevel !== null && student.level < minLevel) continue;
+    if (maxLevel !== null && student.level > maxLevel) continue;
+
     if (!student.blackholedAt) {
       excludedCount++;
       continue;
@@ -124,7 +145,13 @@ export function buildBlackHoleStatus(
     generatedAt: now.toISOString(),
     timezone: WARSAW_TZ,
     cursusId,
-    filters: { upcomingDays, recentDays },
+    filters: {
+      upcomingDays,
+      recentDays,
+      loginSearch: filters.loginSearch ?? null,
+      minLevel: filters.minLevel ?? null,
+      maxLevel: filters.maxLevel ?? null,
+    },
     summary,
     upcoming,
     recentlyBlackHoled,

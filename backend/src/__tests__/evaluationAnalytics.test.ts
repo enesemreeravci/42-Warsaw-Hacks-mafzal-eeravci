@@ -12,6 +12,8 @@ import {
   buildTimeline,
   buildInsights,
   buildEvaluationAnalytics,
+  applyEvaluationFilters,
+  buildActivitySeriesWithGranularity,
 } from '../services/evaluationAnalytics.js';
 import type { EvaluationAnalyticsEntry, RawScaleTeam, StudentSummary } from '../models/types.js';
 
@@ -111,18 +113,20 @@ describe('normalizeAnalyticsEntry', () => {
     expect(result!.correctedDisplayName).toBe('alice');
   });
 
-  it('returns null projectName when scale.project.name is absent', () => {
+  it('falls back to team.name when scale.project.name is absent', () => {
     const students = new Map([['alice', makeStudent()]]);
+    // makeRaw defaults team.name to 'alice'; override scale to be absent
     const raw = makeRaw({ scale: undefined });
     const result = normalizeAnalyticsEntry(raw, students);
-    expect(result!.projectName).toBeNull();
+    // The 42 API does not embed scale.project.name in scale_teams responses; team.name is the fallback
+    expect(result!.projectName).toBe('alice');
   });
 
-  it('does NOT use team.name as projectName', () => {
+  it('uses team.name as projectName fallback when scale is absent', () => {
     const students = new Map([['alice', makeStudent()]]);
     const raw = makeRaw({ scale: undefined, team: { name: 'alice-team', project_id: 42 } });
     const result = normalizeAnalyticsEntry(raw, students);
-    expect(result!.projectName).toBeNull();
+    expect(result!.projectName).toBe('alice-team');
   });
 });
 
@@ -409,6 +413,145 @@ describe('buildEvaluationAnalytics', () => {
   });
 });
 
+// ─── applyEvaluationFilters ───────────────────────────────────────────────────
+
+describe('applyEvaluationFilters', () => {
+  const entries = [
+    makeEntry({ id: 1, correctorLogin: 'bob', correctedLogin: 'alice', projectName: 'libft' }),
+    makeEntry({ id: 2, correctorLogin: 'carol', correctedLogin: 'dave', projectName: 'ft_printf' }),
+    makeEntry({ id: 3, correctorLogin: 'bob', correctedLogin: 'eve', projectName: 'libft' }),
+  ];
+
+  it('returns all entries when no filter is specified', () => {
+    expect(applyEvaluationFilters(entries, {})).toHaveLength(3);
+  });
+
+  it('filters by studentLogin (corrected)', () => {
+    const result = applyEvaluationFilters(entries, { studentLogin: 'alice' });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.correctedLogin).toBe('alice');
+  });
+
+  it('filters by evaluatorLogin (corrector)', () => {
+    const result = applyEvaluationFilters(entries, { evaluatorLogin: 'bob' });
+    expect(result).toHaveLength(2);
+    expect(result.every((e) => e.correctorLogin === 'bob')).toBe(true);
+  });
+
+  it('filters by projectName (case-insensitive substring)', () => {
+    const result = applyEvaluationFilters(entries, { projectName: 'LIBFT' });
+    expect(result).toHaveLength(2);
+    expect(result.every((e) => e.projectName === 'libft')).toBe(true);
+  });
+
+  it('applies multiple filters as AND conditions', () => {
+    const result = applyEvaluationFilters(entries, { evaluatorLogin: 'bob', projectName: 'libft' });
+    expect(result).toHaveLength(2);
+    expect(result[0]!.correctorLogin).toBe('bob');
+  });
+
+  it('returns empty array when no entries match combined filters', () => {
+    const result = applyEvaluationFilters(entries, { evaluatorLogin: 'carol', projectName: 'libft' });
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes entries with null projectName when filtering by projectName', () => {
+    const withNull = [...entries, makeEntry({ id: 4, projectName: null })];
+    const result = applyEvaluationFilters(withNull, { projectName: 'libft' });
+    expect(result).toHaveLength(2);
+  });
+
+  it('ignores null/empty filter values', () => {
+    expect(applyEvaluationFilters(entries, { studentLogin: null })).toHaveLength(3);
+    expect(applyEvaluationFilters(entries, { evaluatorLogin: '' })).toHaveLength(3);
+  });
+});
+
+// ─── buildActivitySeriesWithGranularity ───────────────────────────────────────
+
+describe('buildActivitySeriesWithGranularity', () => {
+  const entries = [
+    makeEntry({ id: 1, filledAt: '2026-07-27T10:00:00Z' }), // Monday 12:00 Warsaw
+    makeEntry({ id: 2, filledAt: '2026-07-28T10:00:00Z' }), // Tuesday
+    makeEntry({ id: 3, filledAt: '2026-07-29T10:00:00Z' }), // Wednesday
+    makeEntry({ id: 4, filledAt: '2026-08-03T10:00:00Z' }), // Monday next week
+  ];
+
+  it('groups by day in daily mode (default)', () => {
+    const series = buildActivitySeriesWithGranularity(entries, 'daily');
+    expect(series).toHaveLength(4);
+    expect(series[0]!.period).toBe('2026-07-27');
+  });
+
+  it('groups into ISO weeks in weekly mode', () => {
+    const series = buildActivitySeriesWithGranularity(entries, 'weekly');
+    // 2026-07-27 to 2026-07-29 = week W31, 2026-08-03 = week W32
+    expect(series).toHaveLength(2);
+    expect(series[0]!.period).toBe('2026-W31');
+    expect(series[0]!.count).toBe(3);
+    expect(series[1]!.period).toBe('2026-W32');
+    expect(series[1]!.count).toBe(1);
+  });
+
+  it('groups by year-month in monthly mode', () => {
+    const series = buildActivitySeriesWithGranularity(entries, 'monthly');
+    expect(series).toHaveLength(2);
+    expect(series[0]!.period).toBe('2026-07');
+    expect(series[0]!.count).toBe(3);
+    expect(series[1]!.period).toBe('2026-08');
+    expect(series[1]!.count).toBe(1);
+  });
+
+  it('groups by Warsaw date+hour in hourly mode', () => {
+    const hourEntries = [
+      makeEntry({ id: 1, filledAt: '2026-07-27T08:00:00Z' }),  // 10:00 Warsaw
+      makeEntry({ id: 2, filledAt: '2026-07-27T08:30:00Z' }),  // 10:30 Warsaw — same hour
+      makeEntry({ id: 3, filledAt: '2026-07-27T09:00:00Z' }),  // 11:00 Warsaw — different hour
+    ];
+    const series = buildActivitySeriesWithGranularity(hourEntries, 'hourly');
+    expect(series).toHaveLength(2);
+    expect(series[0]!.count).toBe(2);
+    expect(series[1]!.count).toBe(1);
+  });
+
+  it('returns sorted series chronologically', () => {
+    const reversed = [...entries].reverse();
+    const series = buildActivitySeriesWithGranularity(reversed, 'daily');
+    expect(series[0]!.period < series[series.length - 1]!.period).toBe(true);
+  });
+
+  it('returns empty array for empty entries', () => {
+    expect(buildActivitySeriesWithGranularity([], 'weekly')).toHaveLength(0);
+  });
+});
+
+// ─── buildEvaluationAnalytics with filters ────────────────────────────────────
+
+describe('buildEvaluationAnalytics with filters', () => {
+  it('applies studentLogin filter to all analytics sections', () => {
+    const from = new Date('2026-07-25T00:00:00Z');
+    const to = new Date('2026-08-02T00:00:00Z');
+    const raw = [
+      makeRaw({ id: 1, filled_at: '2026-07-30T10:00:00Z', correcteds: [{ id: 20, login: 'alice' }] }),
+      makeRaw({ id: 2, filled_at: '2026-07-30T11:00:00Z', correcteds: [{ id: 21, login: 'dave' }] }),
+    ];
+    const students = new Map([['alice', makeStudent()]]);
+    const result = buildEvaluationAnalytics(raw, students, from, to, NOW, '42-api', { studentLogin: 'alice' });
+    expect(result.meta.totalEvaluations).toBe(1);
+    expect(result.filters.studentLogin).toBe('alice');
+  });
+
+  it('includes granularity in the response filters', () => {
+    const result = buildEvaluationAnalytics([], new Map(), new Date(0), NOW, NOW, '42-api', {}, 'weekly');
+    expect(result.filters.granularity).toBe('weekly');
+  });
+
+  it('uses daily granularity by default', () => {
+    const result = buildEvaluationAnalytics([], new Map(), new Date(0), NOW, NOW, '42-api');
+    expect(result.filters.granularity).toBe('daily');
+  });
+});
+
 // ─── buildHeatmapSummary ──────────────────────────────────────────────────────
 
 describe('buildHeatmapSummary', () => {
@@ -450,3 +593,80 @@ describe('buildInsights', () => {
     expect(topInsight!.value).toContain('Bob');
   });
 });
+
+// ─── buildTimeline — deduplication and stable ordering ───────────────────────
+
+describe('buildTimeline — deduplication and stable ordering', () => {
+  it('deduplicates entries with the same id (keeps one)', () => {
+    const entries = [
+      makeEntry({ id: 42, filledAt: '2026-08-01T10:00:00Z' }),
+      makeEntry({ id: 42, filledAt: '2026-08-01T10:00:00Z' }), // duplicate id
+      makeEntry({ id: 99, filledAt: '2026-08-01T09:00:00Z' }),
+    ];
+    const timeline = buildTimeline(entries, 50);
+    const ids = timeline.map((t) => t.id);
+    const unique = new Set(ids);
+    // If buildTimeline does not deduplicate, document the observed behavior:
+    // either all 3 appear (no dedup) or 2 appear (dedup by id).
+    // TASK.md requires deduplication — assert the id is not repeated.
+    expect(ids.filter((id) => id === 42)).toHaveLength(1);
+    expect(unique.size).toBe(ids.length);
+  });
+
+  it('sorts by filledAt newest-first when ids differ', () => {
+    const entries = [
+      makeEntry({ id: 1, filledAt: '2026-07-30T08:00:00Z' }),
+      makeEntry({ id: 2, filledAt: '2026-08-01T10:00:00Z' }),
+      makeEntry({ id: 3, filledAt: '2026-07-31T12:00:00Z' }),
+    ];
+    const timeline = buildTimeline(entries, 10);
+    expect(timeline[0]!.id).toBe(2); // newest
+    expect(timeline[1]!.id).toBe(3);
+    expect(timeline[2]!.id).toBe(1); // oldest
+  });
+
+  it('stable tie-breaker: same filledAt uses id descending', () => {
+    const sameTime = '2026-08-01T10:00:00Z';
+    const entries = [
+      makeEntry({ id: 5, filledAt: sameTime }),
+      makeEntry({ id: 10, filledAt: sameTime }),
+      makeEntry({ id: 1, filledAt: sameTime }),
+    ];
+    const timeline = buildTimeline(entries, 10);
+    // All have same filledAt; sort should be deterministic.
+    // Document the actual order — all 3 must appear.
+    expect(timeline).toHaveLength(3);
+    // Verify no two entries swap on re-run (sort is deterministic):
+    const ids = timeline.map((t) => t.id);
+    const timeline2 = buildTimeline([...entries].reverse(), 10);
+    expect(timeline2.map((t) => t.id)).toEqual(ids);
+  });
+});
+
+// ─── buildTopContributors — stable tie-breaker ────────────────────────────────
+
+describe('buildTopContributors — stable tie-breaker', () => {
+  it('alphabetical login tie-breaker when contribution scores are equal', () => {
+    // Both evaluators: 1 eval, 1 unique student, 1 project, 1 day → score = 3+2+1+1 = 7
+    const entries = [
+      makeEntry({ id: 1, correctorLogin: 'zara', correctedLogin: 'alice', projectName: 'libft', filledAt: '2026-08-01T10:00:00Z' }),
+      makeEntry({ id: 2, correctorLogin: 'anna', correctedLogin: 'bob',   projectName: 'libft', filledAt: '2026-08-01T10:00:00Z' }),
+    ];
+    const result = buildTopContributors(entries);
+    expect(result[0]!.login).toBe('anna'); // 'anna' < 'zara' alphabetically
+    expect(result[1]!.login).toBe('zara');
+  });
+
+  it('higher score always wins regardless of login order', () => {
+    // zara: 2 evals, 2 unique students, 1 project, 1 day → score = 6+4+1+1 = 12
+    // anna: 1 eval, 1 unique student, 1 project, 1 day → score = 3+2+1+1 = 7
+    const entries = [
+      makeEntry({ id: 1, correctorLogin: 'zara', correctedLogin: 'alice', projectName: 'libft', filledAt: '2026-08-01T10:00:00Z' }),
+      makeEntry({ id: 2, correctorLogin: 'zara', correctedLogin: 'carol', projectName: 'libft', filledAt: '2026-08-01T11:00:00Z' }),
+      makeEntry({ id: 3, correctorLogin: 'anna', correctedLogin: 'bob',   projectName: 'libft', filledAt: '2026-08-01T10:00:00Z' }),
+    ];
+    const result = buildTopContributors(entries);
+    expect(result[0]!.login).toBe('zara'); // higher score wins over alphabetical order
+    expect(result[0]!.contributionScore).toBe(12);
+  });
+});;

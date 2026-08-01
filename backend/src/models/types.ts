@@ -224,6 +224,7 @@ export interface RawCursusUser {
   end_at?: string | null;
   blackholed_at?: string | null;
   cursus_id?: number;
+  updated_at?: string | null;
   user?: RawUser;
   cursus?: RawCursus;
   [key: string]: unknown;
@@ -457,7 +458,15 @@ export interface EvaluationInsight {
 export interface EvaluationAnalyticsResponse {
   generatedAt: string;
   timezone: string;
-  filters: { range: string; from: string; to: string };
+  filters: {
+    range: string;
+    from: string;
+    to: string;
+    studentLogin: string | null;
+    evaluatorLogin: string | null;
+    projectName: string | null;
+    granularity: string;
+  };
   kpi: EvaluationKPI;
   heatmap: EvaluationHeatmapCell[];
   heatmapSummary: EvaluationHeatmapSummary;
@@ -522,7 +531,13 @@ export interface BlackHoleStatusResponse {
   generatedAt: string;
   timezone: string;
   cursusId: number;
-  filters: { upcomingDays: number; recentDays: number };
+  filters: {
+    upcomingDays: number;
+    recentDays: number;
+    loginSearch: string | null;
+    minLevel: number | null;
+    maxLevel: number | null;
+  };
   summary: BlackHoleSummary;
   upcoming: BlackHoleUpcomingEntry[];
   recentlyBlackHoled: BlackHoleRecentEntry[];

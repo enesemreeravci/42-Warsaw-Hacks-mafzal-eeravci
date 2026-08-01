@@ -18,9 +18,11 @@ import { NarratorRobotComponent, type NarratorCue } from './components/narrator-
 import { NarratorTargetDirective } from './narrator-target.directive';
 import { NarratorTargetRegistry } from './narrator-target-registry.service';
 import { RobotAchievementShowcaseComponent } from './components/robot-achievement-showcase.component';
+import { RobotIntroComponent } from './components/robot-intro.component';
 import { TopProjectsListComponent } from './components/top-projects-list.component';
 import { TopStudentsByCompletedComponent } from './components/top-students-by-completed.component';
 import { TopStudentsByLevelComponent } from './components/top-students-by-level.component';
+import { TranscendenceCompletedShowcaseComponent } from './components/transcendence-completed-showcase.component';
 import { UpcomingEventsComponent } from './components/upcoming-events.component';
 import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
@@ -43,16 +45,22 @@ const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
   { id: 'events', color: '#ffb020', text: "What's coming up next on campus." },
 ];
 
-/** Cues for TV mode, one per rotating section (index-matched to `TvModeService.activeSection()`). */
+/** Cue shown while the robot's welcome typewriter intro is still playing, before the rotation
+ * below starts. Not index-matched to anything - it's only used while `!tvMode.introComplete()`. */
+const TV_INTRO_CUE: NarratorCue = { id: 'intro', color: '#34e2c4', text: 'Getting ready to take you on a tour of campus…' };
+
+/** Cues for TV mode, one per rotating section (index-matched to `TvModeService.activeSection()`).
+ * The Robot Achievement Showcase is deliberately last, so it closes out every loop. */
 const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'hive', color: '#4cc9f0', text: "The Hive - who's on campus right now, live." },
   { id: 'spotlight', color: '#ffb020', text: 'Celebrating a recent stand-out achievement.' },
   { id: 'race', color: '#16f0a6', text: "This week's XP race, and who's closest to a black hole." },
   { id: 'coalitions', color: '#be2ad1', text: "Coalition standings and each team's top contributor." },
   { id: 'evaluations', color: '#4cc9f0', text: 'Freshly filled peer evaluations.' },
-  { id: 'showcase', color: '#34e2c4', text: "A closer look at today's top achievements." },
   { id: 'weekly-campus-time', color: '#4cc9f0', text: 'These students spent the most time working from campus this week.' },
   { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
+  { id: 'transcendence', color: '#be2ad1', text: 'Celebrating every student who reached Transcendence.' },
+  { id: 'showcase', color: '#34e2c4', text: "Saving the best for last - today's top achievements." },
 ];
 
 @Component({
@@ -74,6 +82,8 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     CoalitionLeaderboardComponent,
     LiveEvaluationsComponent,
     RobotAchievementShowcaseComponent,
+    RobotIntroComponent,
+    TranscendenceCompletedShowcaseComponent,
     NarratorRobotComponent,
     NarratorTargetDirective,
     WeeklyCampusActivityBoardComponent,
@@ -111,6 +121,10 @@ export class DashboardPage {
    * rotation; otherwise it's synced to the active TV section in TV mode, or auto-rotates on its
    * own timer on the main dashboard. */
   protected readonly activeNarratorCue = computed<NarratorCue | null>(() => {
+    if (this.tvMode.enabled() && !this.tvMode.introComplete()) {
+      return TV_INTRO_CUE;
+    }
+
     const cues = this.tvMode.enabled() ? TV_NARRATOR_CUES : DASHBOARD_NARRATOR_CUES;
 
     const focusedId = this.targetRegistry.focusedId();
@@ -126,8 +140,11 @@ export class DashboardPage {
   });
 
   /** TV mode has one full-bleed section active at a time, so its narrator target is always the
-   * same wrapper element - only the id it's registered under changes as sections rotate. */
-  protected readonly tvNarratorTargetId = computed(() => TV_NARRATOR_CUES[this.tvMode.activeSection()]?.id ?? '');
+   * same wrapper element - only the id it's registered under changes as sections rotate (or, while
+   * the welcome intro is still playing, stays pinned to the intro cue's id). */
+  protected readonly tvNarratorTargetId = computed(() =>
+    !this.tvMode.introComplete() ? TV_INTRO_CUE.id : (TV_NARRATOR_CUES[this.tvMode.activeSection()]?.id ?? ''),
+  );
 
   constructor() {
     timer(0, 1000)

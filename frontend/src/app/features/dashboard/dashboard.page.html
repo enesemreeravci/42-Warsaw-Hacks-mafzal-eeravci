@@ -138,43 +138,50 @@
         [appNarratorTarget]="tvNarratorTargetId()"
         [style.--highlight-color]="activeNarratorCue()?.color"
       >
-        @switch (tvMode.activeSection()) {
-          @case (0) {
-            <app-hive-node-map [students]="store.data().livePulse?.activeNow ?? []" />
-          }
-          @case (1) {
-            <app-achievement-spotlight [achievements]="store.data().livePulse?.achievements ?? []" />
-          }
-          @case (2) {
-            <app-xp-race-blackhole
-              [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []"
-              [blackHoleWatch]="store.data().livePulse?.blackHoleWatch ?? []"
-            />
-          }
-          @case (3) {
-            <app-coalition-leaderboard [standings]="store.data().coalitions" />
-          }
-          @case (4) {
-            <app-live-evaluations [evaluations]="store.data().evaluations" />
-          }
-          @case (5) {
-            <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
-          }
-          @case (6) {
-            <app-weekly-campus-activity-board
-              title="Most Campus Time — Last 7 Days"
-              metric="time"
-              [activity]="store.data().weeklyCampusActivity"
-              [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
-            />
-          }
-          @case (7) {
-            <app-weekly-campus-activity-board
-              title="Most Sessions Started — Last 7 Days"
-              metric="sessions"
-              [activity]="store.data().weeklyCampusActivity"
-              [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
-            />
+        @if (!tvMode.introComplete()) {
+          <app-robot-intro (introDone)="tvMode.completeIntro()" />
+        } @else {
+          @switch (tvMode.activeSection()) {
+            @case (0) {
+              <app-hive-node-map [students]="store.data().livePulse?.activeNow ?? []" />
+            }
+            @case (1) {
+              <app-achievement-spotlight [achievements]="store.data().livePulse?.achievements ?? []" />
+            }
+            @case (2) {
+              <app-xp-race-blackhole
+                [xpLeaderboard]="store.data().livePulse?.xpLeaderboard ?? []"
+                [blackHoleWatch]="store.data().livePulse?.blackHoleWatch ?? []"
+              />
+            }
+            @case (3) {
+              <app-coalition-leaderboard [standings]="store.data().coalitions" />
+            }
+            @case (4) {
+              <app-live-evaluations [evaluations]="store.data().evaluations" />
+            }
+            @case (5) {
+              <app-weekly-campus-activity-board
+                title="Most Campus Time — Last 7 Days"
+                metric="time"
+                [activity]="store.data().weeklyCampusActivity"
+                [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+              />
+            }
+            @case (6) {
+              <app-weekly-campus-activity-board
+                title="Most Sessions Started — Last 7 Days"
+                metric="sessions"
+                [activity]="store.data().weeklyCampusActivity"
+                [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+              />
+            }
+            @case (7) {
+              <app-transcendence-completed-showcase />
+            }
+            @case (8) {
+              <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
+            }
           }
         }
       </div>

@@ -4,39 +4,39 @@ import { AvatarComponent } from '../../../shared/components/avatar/avatar.compon
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 
 const INTRO_DISPLAY_MS = 3500; // within the required 3-4s window
-const ROTATION_MS = 5000;
-const CONFETTI_COUNT = 40;
-const CONFETTI_COLORS = ['#34e2c4', '#ffb020', '#4cc9f0', '#38e19a', '#ff5470'];
+/** A batch of falling achievement pictures runs for at most this long before the next batch
+ * takes over - keeps every drop-cascade cycle within the required 5s cap. */
+const BATCH_MS = 5000;
+const MIN_FALLING = 3;
+const MAX_FALLING = 5;
+/** Per-item stagger and fall duration, tuned so the last picture in a 5-item batch still lands
+ * (delay + duration) comfortably inside BATCH_MS. */
+const FALL_STAGGER_MS = 450;
+const FALL_DURATION_MS = 2200;
 
-/** Fixed scatter slots for the dimmed background avatars, arranged around the edges so the
- * center stays clear for the robot and the spotlight card. */
-const BACKGROUND_SLOTS = [
-  { leftPct: 8, topPct: 14 },
-  { leftPct: 86, topPct: 16 },
-  { leftPct: 6, topPct: 78 },
-  { leftPct: 88, topPct: 76 },
-  { leftPct: 47, topPct: 6 },
-  { leftPct: 47, topPct: 92 },
-];
-
-interface ConfettiPiece {
-  txPx: number;
-  tyPx: number;
-  delaySec: number;
-  durationSec: number;
-  color: string;
+interface FallingPicture {
+  key: string;
+  achievement: AchievementEntry;
+  leftPct: number;
+  delayMs: number;
+  durationMs: number;
 }
 
-function buildConfettiBurst(): ConfettiPiece[] {
-  return Array.from({ length: CONFETTI_COUNT }, (_, i) => {
-    const angle = (i / CONFETTI_COUNT) * Math.PI * 2 + (i % 3) * 0.4;
-    const distance = 160 + (i % 5) * 36;
+/** Builds a batch of 3-5 falling pictures starting at `startIndex` in `list`, wrapping around
+ * (and repeating entries) if there are fewer than MIN_FALLING achievements to draw from. `cycle`
+ * is folded into each item's key purely so Angular's `@for` track treats every batch as new
+ * elements and replays the fall animation, even when the underlying achievements repeat. */
+function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: number): FallingPicture[] {
+  if (list.length === 0) return [];
+  const count = Math.min(MAX_FALLING, Math.max(MIN_FALLING, list.length));
+  return Array.from({ length: count }, (_, i) => {
+    const achievement = list[(startIndex + i) % list.length]!;
     return {
-      txPx: Math.round(Math.cos(angle) * distance),
-      tyPx: Math.round(Math.sin(angle) * distance * 0.7),
-      delaySec: (i % 8) * 0.05,
-      durationSec: 0.9 + (i % 4) * 0.15,
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length]!,
+      key: `${achievement.projectUserId}-${cycle}-${i}`,
+      achievement,
+      leftPct: ((i + 1) * 100) / (count + 1),
+      delayMs: i * FALL_STAGGER_MS,
+      durationMs: FALL_DURATION_MS + (i % 3) * 200,
     };
   });
 }
@@ -49,11 +49,14 @@ function greetingForHour(hour: number): string {
 
 /**
  * TV-mode section: a dynamic time-of-day greeting that auto-transitions into a looping
- * achievement showcase with a confetti burst on every unlock. No robot avatar here - the single
- * central 3D mascot (NarratorRobotComponent) is the only robot on screen, never duplicated
- * per-slide. A fresh instance of this component is created each time TV mode's rotation cycles
- * back to this section (Angular's `@switch` destroys/recreates the case), so the intro naturally
- * replays every time - no manual "did we just enter this section" tracking needed.
+ * achievement showcase where 3-5 unlocked-achievement pictures fall from the top of the stage to
+ * the bottom simultaneously, each batch's cascade capped at BATCH_MS (5s) before the next batch
+ * takes over. No robot avatar here - the single central 3D mascot (NarratorRobotComponent) is
+ * the only robot on screen, never duplicated per-slide. This section is deliberately the last
+ * one in the TV rotation (see TvModeService/dashboard.page.html), so it closes out every loop. A
+ * fresh instance of this component is created each time TV mode's rotation cycles back to this
+ * section (Angular's `@switch` destroys/recreates the case), so the intro naturally replays every
+ * time - no manual "did we just enter this section" tracking needed.
  */
 @Component({
   selector: 'app-robot-achievement-showcase',
@@ -62,16 +65,6 @@ function greetingForHour(hour: number): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="showcase">
-      @if (phase() === 'showcase' && backgroundAvatars().length > 0) {
-        <div class="showcase__background" aria-hidden="true">
-          @for (bg of backgroundAvatars(); track bg.projectUserId; let i = $index) {
-            <div class="showcase__bg-avatar" [style.left.%]="slots[i].leftPct" [style.top.%]="slots[i].topPct">
-              <app-avatar [imageUrl]="bg.imageUrl" [name]="bg.displayName" [size]="64" />
-            </div>
-          }
-        </div>
-      }
-
       <div class="showcase__stage">
         @if (phase() === 'intro') {
           <div class="showcase__intro">
@@ -81,36 +74,24 @@ function greetingForHour(hour: number): string {
         } @else if (achievements().length === 0) {
           <app-empty-state title="No achievements yet" description="Recent completions will be celebrated here as they happen." />
         } @else {
-          @for (item of [currentAchievement()]; track activeIndex()) {
-            @if (item) {
-              <div class="showcase__achievement">
-                <h2 class="showcase__header">ACHIEVEMENT UNLOCKED</h2>
-                <p class="showcase__caption">Congratulations on passing the module!</p>
+          <div class="showcase__achievement">
+            <h2 class="showcase__header">ACHIEVEMENT UNLOCKED</h2>
+            <p class="showcase__caption">Congratulations on passing the module!</p>
 
-                <div class="showcase__spotlight">
-                  <div class="showcase__spotlight-avatar">
-                    <app-avatar [imageUrl]="item.imageUrl" [name]="item.displayName" [size]="140" />
-                  </div>
-                  <p class="showcase__name">{{ item.displayName }}</p>
-                  <p class="showcase__project">{{ item.projectName }}</p>
-                  <span class="showcase__score">{{ item.finalMark ?? '—' }}/100</span>
+            <div class="showcase__falling">
+              @for (item of fallingBatch(); track item.key) {
+                <div
+                  class="falling-picture"
+                  [style.left.%]="item.leftPct"
+                  [style.--delay.ms]="item.delayMs"
+                  [style.--duration.ms]="item.durationMs"
+                >
+                  <app-avatar [imageUrl]="item.achievement.imageUrl" [name]="item.achievement.displayName" [size]="96" />
+                  <span class="falling-picture__name">{{ item.achievement.displayName }}</span>
                 </div>
-
-                <div class="showcase__confetti" aria-hidden="true">
-                  @for (piece of confettiPieces; track $index) {
-                    <span
-                      class="confetti-piece"
-                      [style.background]="piece.color"
-                      [style.--tx.px]="piece.txPx"
-                      [style.--ty.px]="piece.tyPx"
-                      [style.--delay.s]="piece.delaySec"
-                      [style.--duration.s]="piece.durationSec"
-                    ></span>
-                  }
-                </div>
-              </div>
-            }
-          }
+              }
+            </div>
+          </div>
         }
       </div>
     </div>
@@ -127,19 +108,6 @@ function greetingForHour(hour: number): string {
       border-radius: var(--radius-lg);
       border: 1px solid var(--color-border);
       background: radial-gradient(circle at 50% 40%, rgba(52, 226, 196, 0.08), transparent 60%), var(--color-bg-elevated);
-    }
-
-    .showcase__background {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-    }
-
-    .showcase__bg-avatar {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      opacity: 0.28;
-      filter: grayscale(0.4);
     }
 
     .showcase__stage {
@@ -196,76 +164,48 @@ function greetingForHour(hour: number): string {
       color: var(--color-text-secondary);
     }
 
-    .showcase__spotlight {
+    .showcase__falling {
+      position: relative;
+      width: min(900px, 90vw);
+      height: 320px;
+    }
+
+    .falling-picture {
+      position: absolute;
+      top: -140px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: var(--space-2);
+      gap: var(--space-1);
+      transform: translateX(-50%);
     }
 
     @media (prefers-reduced-motion: no-preference) {
-      .showcase__spotlight {
-        animation: spotlight-enter 500ms ease-out;
+      .falling-picture {
+        animation: falling-picture-drop var(--duration, 2200ms) cubic-bezier(0.33, 0, 0.67, 1) var(--delay, 0ms) both;
       }
     }
 
-    @keyframes spotlight-enter {
-      from { opacity: 0; transform: scale(0.85); }
-      to { opacity: 1; transform: scale(1); }
+    @media (prefers-reduced-motion: reduce) {
+      .falling-picture {
+        top: calc(100% - 120px);
+      }
     }
 
-    .showcase__spotlight-avatar {
-      padding: 6px;
-      border-radius: 50%;
-      border: 3px solid var(--color-accent-strong);
-      box-shadow: 0 0 28px rgba(52, 226, 196, 0.45);
+    @keyframes falling-picture-drop {
+      0% { top: -140px; opacity: 0; }
+      12% { opacity: 1; }
+      100% { top: calc(100% - 120px); opacity: 1; }
     }
 
-    .showcase__name {
-      margin: var(--space-2) 0 0;
-      font-size: 1.8rem;
-      font-weight: 800;
-    }
-
-    .showcase__project {
-      margin: 0;
-      font-size: 1.2rem;
+    .falling-picture__name {
+      max-width: 12ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.85rem;
+      font-weight: 700;
       color: var(--color-text-secondary);
-    }
-
-    .showcase__score {
-      margin-top: var(--space-1);
-      font-size: 2rem;
-      font-weight: 900;
-      color: var(--color-warn);
-      text-shadow: 0 0 20px rgba(255, 176, 32, 0.6);
-    }
-
-    .showcase__confetti {
-      position: absolute;
-      inset: -40vh -40vw;
-      pointer-events: none;
-    }
-
-    .confetti-piece {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 10px;
-      height: 10px;
-      border-radius: 3px;
-      opacity: 0;
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .confetti-piece {
-        animation: confetti-burst var(--duration, 1.1s) ease-out var(--delay, 0s) 1 forwards;
-      }
-    }
-
-    @keyframes confetti-burst {
-      0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
-      100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1); opacity: 0; }
     }
   `,
 })
@@ -273,22 +213,12 @@ export class RobotAchievementShowcaseComponent {
   readonly achievements = input.required<AchievementEntry[]>();
 
   protected readonly greeting = greetingForHour(new Date().getHours());
-  protected readonly confettiPieces = buildConfettiBurst();
-  protected readonly slots = BACKGROUND_SLOTS;
 
   protected readonly phase = signal<'intro' | 'showcase'>('intro');
-  protected readonly activeIndex = signal(0);
+  private readonly batchStart = signal(0);
+  private readonly cycle = signal(0);
 
-  protected readonly currentAchievement = computed(() => {
-    const list = this.achievements();
-    return list.length > 0 ? list[this.activeIndex() % list.length]! : null;
-  });
-
-  protected readonly backgroundAvatars = computed(() => {
-    const list = this.achievements();
-    const active = this.activeIndex() % Math.max(list.length, 1);
-    return list.filter((_, i) => i !== active).slice(0, BACKGROUND_SLOTS.length);
-  });
+  protected readonly fallingBatch = computed(() => buildFallingBatch(this.achievements(), this.batchStart(), this.cycle()));
 
   private readonly destroyRef = inject(DestroyRef);
   private rotationTimer: ReturnType<typeof setInterval> | null = null;
@@ -306,9 +236,11 @@ export class RobotAchievementShowcaseComponent {
   }
 
   private startRotation(): void {
-    if (this.achievements().length <= 1) return; // nothing to rotate to
     this.rotationTimer = setInterval(() => {
-      this.activeIndex.update((i) => (i + 1) % this.achievements().length);
-    }, ROTATION_MS);
+      const list = this.achievements();
+      const batchSize = Math.min(MAX_FALLING, Math.max(MIN_FALLING, list.length || 1));
+      this.batchStart.update((i) => (list.length > 0 ? (i + batchSize) % list.length : 0));
+      this.cycle.update((c) => c + 1);
+    }, BATCH_MS);
   }
 }

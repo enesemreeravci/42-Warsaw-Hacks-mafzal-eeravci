@@ -386,7 +386,15 @@ export type EvaluationRangeOption = 'today' | 'yesterday' | 'last7Days' | 'lastW
 export interface EvaluationAnalyticsResponse {
   generatedAt: string;
   timezone: string;
-  filters: { range: string; from: string; to: string };
+  filters: {
+    range: string;
+    from: string;
+    to: string;
+    studentLogin: string | null;
+    evaluatorLogin: string | null;
+    projectName: string | null;
+    granularity: string;
+  };
   kpi: EvaluationKPI;
   heatmap: EvaluationHeatmapCell[];
   heatmapSummary: EvaluationHeatmapSummary;
@@ -451,7 +459,13 @@ export interface BlackHoleStatusResponse {
   generatedAt: string;
   timezone: string;
   cursusId: number;
-  filters: { upcomingDays: number; recentDays: number };
+  filters: {
+    upcomingDays: number;
+    recentDays: number;
+    loginSearch: string | null;
+    minLevel: number | null;
+    maxLevel: number | null;
+  };
   summary: BlackHoleSummary;
   upcoming: BlackHoleUpcomingEntry[];
   recentlyBlackHoled: BlackHoleRecentEntry[];

@@ -6,8 +6,9 @@ import {
   pickDisplayName,
   pickImageUrl,
   resolveCompletionDate,
+  selectCursusRecord,
 } from '../services/normalize.js';
-import type { RawProjectUser } from '../models/types.js';
+import type { RawCursusUser, RawProjectUser } from '../models/types.js';
 
 describe('pickDisplayName', () => {
   it('prefers displayname, then usual_full_name, then login', () => {
@@ -84,5 +85,62 @@ describe('normalizeProjectCompletion', () => {
 
   it('returns null when there is no usable completion date', () => {
     expect(normalizeProjectCompletion({ ...base, marked_at: null, updated_at: null, created_at: null })).toBeNull();
+  });
+});
+
+// ─── selectCursusRecord ───────────────────────────────────────────────────────
+
+function makeCursusUser(overrides: Partial<RawCursusUser> = {}): RawCursusUser {
+  return {
+    id: 1,
+    level: 5,
+    end_at: null,
+    blackholed_at: '2026-09-01T00:00:00Z',
+    cursus_id: 21,
+    updated_at: '2026-01-01T00:00:00Z',
+    user: { id: 100, login: 'alice' },
+    ...overrides,
+  };
+}
+
+describe('selectCursusRecord', () => {
+  it('returns null for empty input', () => {
+    expect(selectCursusRecord([])).toBeNull();
+  });
+
+  it('returns the single record directly', () => {
+    const rec = makeCursusUser();
+    expect(selectCursusRecord([rec])).toBe(rec);
+  });
+
+  it('prefers an active record (end_at null) over an ended one', () => {
+    const active = makeCursusUser({ id: 1, end_at: null, updated_at: '2025-01-01T00:00:00Z' });
+    const ended  = makeCursusUser({ id: 2, end_at: '2024-06-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' });
+    // ended has a more recent updated_at but active is still preferred
+    expect(selectCursusRecord([ended, active])).toBe(active);
+  });
+
+  it('among active records, picks the most recently updated', () => {
+    const older = makeCursusUser({ id: 1, end_at: null, updated_at: '2025-01-01T00:00:00Z' });
+    const newer = makeCursusUser({ id: 2, end_at: null, updated_at: '2026-06-01T00:00:00Z' });
+    expect(selectCursusRecord([older, newer])).toBe(newer);
+  });
+
+  it('among active records with identical updated_at, picks the higher id', () => {
+    const lo = makeCursusUser({ id: 10, end_at: null, updated_at: '2026-01-01T00:00:00Z' });
+    const hi = makeCursusUser({ id: 99, end_at: null, updated_at: '2026-01-01T00:00:00Z' });
+    expect(selectCursusRecord([lo, hi])).toBe(hi);
+  });
+
+  it('when no active record exists, falls back to the most recently updated ended record', () => {
+    const old = makeCursusUser({ id: 1, end_at: '2023-01-01T00:00:00Z', updated_at: '2023-01-01T00:00:00Z' });
+    const recent = makeCursusUser({ id: 2, end_at: '2024-06-01T00:00:00Z', updated_at: '2024-06-01T00:00:00Z' });
+    expect(selectCursusRecord([old, recent])).toBe(recent);
+  });
+
+  it('uses id as a deterministic tie-breaker among ended records with same updated_at', () => {
+    const lo = makeCursusUser({ id: 5,  end_at: '2024-01-01T00:00:00Z', updated_at: '2024-06-01T00:00:00Z' });
+    const hi = makeCursusUser({ id: 20, end_at: '2024-01-01T00:00:00Z', updated_at: '2024-06-01T00:00:00Z' });
+    expect(selectCursusRecord([lo, hi])).toBe(hi);
   });
 });

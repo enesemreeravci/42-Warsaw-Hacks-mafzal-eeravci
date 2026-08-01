@@ -126,13 +126,27 @@ export class ApiService {
     return this.http.get<ApiEnvelope<Ft42Status>>(`${this.base}/status/42`);
   }
 
-  getEvaluationAnalytics(range: EvaluationRangeOption = 'last7Days'): Observable<ApiEnvelope<EvaluationAnalyticsResponse>> {
-    const params = new HttpParams().set('range', range);
+  getEvaluationAnalytics(
+    range: EvaluationRangeOption = 'last7Days',
+    filters: { studentLogin?: string | null; evaluatorLogin?: string | null; projectName?: string | null } = {},
+    granularity: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily',
+  ): Observable<ApiEnvelope<EvaluationAnalyticsResponse>> {
+    let params = new HttpParams().set('range', range).set('granularity', granularity);
+    if (filters.studentLogin) params = params.set('studentLogin', filters.studentLogin);
+    if (filters.evaluatorLogin) params = params.set('evaluatorLogin', filters.evaluatorLogin);
+    if (filters.projectName) params = params.set('projectName', filters.projectName);
     return this.http.get<ApiEnvelope<EvaluationAnalyticsResponse>>(`${this.base}/evaluations/analytics`, { params });
   }
 
-  getBlackHoleStatus(upcomingDays = 30, recentDays = 30): Observable<ApiEnvelope<BlackHoleStatusResponse>> {
-    const params = new HttpParams().set('upcomingDays', upcomingDays).set('recentDays', recentDays);
+  getBlackHoleStatus(
+    upcomingDays = 30,
+    recentDays = 30,
+    filters: { loginSearch?: string | null; minLevel?: number | null; maxLevel?: number | null } = {},
+  ): Observable<ApiEnvelope<BlackHoleStatusResponse>> {
+    let params = new HttpParams().set('upcomingDays', upcomingDays).set('recentDays', recentDays);
+    if (filters.loginSearch) params = params.set('loginSearch', filters.loginSearch);
+    if (filters.minLevel != null) params = params.set('minLevel', filters.minLevel);
+    if (filters.maxLevel != null) params = params.set('maxLevel', filters.maxLevel);
     return this.http.get<ApiEnvelope<BlackHoleStatusResponse>>(`${this.base}/blackhole/status`, { params });
   }
 }

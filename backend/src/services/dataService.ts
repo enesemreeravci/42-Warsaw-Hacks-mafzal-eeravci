@@ -19,7 +19,7 @@ import { TtlCache, type CacheGetResult } from '../utils/cache.js';
 import { buildCoalitionStandings, buildTopContributors, buildWeeklyTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
 import { buildUpcomingEvents, type CampusEvent } from './events.js';
-import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary } from './normalize.js';
+import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary, selectCursusRecord } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
 import type { Ft42ApiClient } from './ft42ApiClient.js';
 import { buildWeeklyCampusActivity, getLastSevenDaysRange, type WeeklyCampusActivityResponse } from './weeklyCampusActivity.js';
@@ -592,19 +592,34 @@ export class DataService {
       }
     }
 
-    const students: StudentSummary[] = cursusUsers
-      .filter((cu) => cu.user)
-      .map((cu) =>
+    // Group cursus_user records by user.id and apply selectCursusRecord so that students who
+    // have multiple cursus records (e.g. a re-enrolment after subscription reset) produce only
+    // one StudentSummary entry. selectCursusRecord prefers active records, then most-recently
+    // updated, then highest id — deterministic per TASK.md §6.2.
+    const cursusUsersByUserId = new Map<number, RawCursusUser[]>();
+    for (const cu of cursusUsers) {
+      if (!cu.user) continue;
+      const list = cursusUsersByUserId.get(cu.user.id) ?? [];
+      list.push(cu);
+      cursusUsersByUserId.set(cu.user.id, list);
+    }
+
+    const students: StudentSummary[] = [];
+    for (const [, records] of cursusUsersByUserId) {
+      const best = selectCursusRecord(records);
+      if (!best || !best.user) continue;
+      students.push(
         normalizeStudentSummary({
-          user: cu.user!,
-          cursusUser: cu,
+          user: best.user,
+          cursusUser: best,
           campusName: discovered.campusName,
           cursusName: discovered.cursusName,
-          completedProjects: completionsByStudent.get(cu.user!.id) ?? [],
-          currentProjectCount: currentProjectsByStudent.get(cu.user!.id)?.length ?? 0,
-          activeSince: activeSinceByUser.get(cu.user!.id) ?? null,
+          completedProjects: completionsByStudent.get(best.user.id) ?? [],
+          currentProjectCount: currentProjectsByStudent.get(best.user.id)?.length ?? 0,
+          activeSince: activeSinceByUser.get(best.user.id) ?? null,
         }),
       );
+    }
 
     return { students, completions, discovered, currentProjectsByStudent };
   }

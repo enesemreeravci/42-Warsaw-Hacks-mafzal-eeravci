@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { AppContext } from '../appContext.js';
 import { sendData } from '../middleware/envelope.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { buildEvaluationAnalytics } from '../services/evaluationAnalytics.js';
+import { buildEvaluationAnalytics, type EvaluationFilters, type EvaluationGranularity } from '../services/evaluationAnalytics.js';
 
 const WARSAW_TZ = 'Europe/Warsaw';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -99,10 +99,21 @@ export function evaluationsRouter(ctx: AppContext): Router {
         now,
       );
 
+      const studentLogin = String(req.query.studentLogin ?? '').trim() || null;
+      const evaluatorLogin = String(req.query.evaluatorLogin ?? '').trim() || null;
+      const projectName = String(req.query.projectName ?? '').trim() || null;
+      const rawGranularity = String(req.query.granularity ?? '');
+      const granularity: EvaluationGranularity = (
+        ['hourly', 'daily', 'weekly', 'monthly'] as const
+      ).includes(rawGranularity as EvaluationGranularity)
+        ? (rawGranularity as EvaluationGranularity)
+        : 'daily';
+      const filters: EvaluationFilters = { studentLogin, evaluatorLogin, projectName };
+
       const { scaleTeams, students } = await ctx.dataService.getEvalAnalyticsData();
       const studentsByLogin = new Map(students.map((s) => [s.login.toLowerCase(), s]));
 
-      const response = buildEvaluationAnalytics(scaleTeams, studentsByLogin, from, to, now, 'cache');
+      const response = buildEvaluationAnalytics(scaleTeams, studentsByLogin, from, to, now, 'cache', filters, granularity);
       response.filters.range = rangeLabel;
 
       sendData(res, response);

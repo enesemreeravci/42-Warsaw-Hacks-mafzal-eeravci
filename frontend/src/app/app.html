@@ -89,7 +89,7 @@
     <router-outlet />
   </main>
 
-  @if (tvMode.enabled()) {
+  @if (tvMode.enabled() && tvMode.introComplete()) {
     <app-achievement-takeover-overlay [achievements]="store.data().livePulse?.achievements ?? []" />
   }
 </div>

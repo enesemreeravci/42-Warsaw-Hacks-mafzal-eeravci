@@ -14,6 +14,32 @@ export function isActiveCursusUser(cursusUser: Pick<RawCursusUser, 'end_at'>): b
 }
 
 /**
+ * Selects the best cursus_user record when a student has multiple records for the same cursus.
+ * Priority:
+ *   1. Active records (end_at null/undefined) are preferred over ended records.
+ *   2. Among records of equal activity status, the most recently updated takes precedence.
+ *   3. Highest id is the deterministic tie-breaker.
+ *
+ * Per TASK.md §6.2: never use `user.cursus_users[0]` — always apply this deterministic rule.
+ */
+export function selectCursusRecord(records: RawCursusUser[]): RawCursusUser | null {
+  if (records.length === 0) return null;
+  if (records.length === 1) return records[0]!;
+
+  return [...records].sort((a, b) => {
+    const aActive = isActiveCursusUser(a) ? 0 : 1;
+    const bActive = isActiveCursusUser(b) ? 0 : 1;
+    if (aActive !== bActive) return aActive - bActive;
+
+    const aUpd = a.updated_at ?? '';
+    const bUpd = b.updated_at ?? '';
+    if (aUpd !== bUpd) return bUpd.localeCompare(aUpd);
+
+    return b.id - a.id;
+  })[0]!;
+}
+
+/**
  * `validated?` is not a legal TS identifier, so raw records are normalized
  * into a plain `validated` boolean the moment they cross the API boundary.
  */

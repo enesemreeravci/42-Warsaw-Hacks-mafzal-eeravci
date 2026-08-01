@@ -43,9 +43,13 @@ function getWarsawDateStr(date: Date): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: WARSAW_TZ, dateStyle: 'short' }).format(date);
 }
 
-/** Try scale.project.name first (actual project), then null. team.name is the team name, not the project. */
+/**
+ * Best-effort project name resolution. scale.project.name is the canonical field but the 42 API
+ * does not always embed it in the scale_teams response. team.name is the next best option —
+ * for most Warsaw cursus projects a team's name is derived from the project slug.
+ */
 function resolveProjectName(raw: RawScaleTeam): string | null {
-  return raw.scale?.project?.name ?? null;
+  return raw.scale?.project?.name ?? raw.team?.name ?? null;
 }
 
 function resolveProjectId(raw: RawScaleTeam): number | null {
@@ -357,10 +361,82 @@ export function buildActivitySeries(entries: EvaluationAnalyticsEntry[]): Evalua
   return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, count]) => ({ period, count }));
 }
 
-/** Recent evaluations newest-first for the timeline feed. */
+export interface EvaluationFilters {
+  studentLogin?: string | null;
+  evaluatorLogin?: string | null;
+  projectName?: string | null;
+}
+
+export type EvaluationGranularity = 'hourly' | 'daily' | 'weekly' | 'monthly';
+
+/** Applies login/project text filters. Case-insensitive substring match. */
+export function applyEvaluationFilters(
+  entries: EvaluationAnalyticsEntry[],
+  filters: EvaluationFilters,
+): EvaluationAnalyticsEntry[] {
+  let result = entries;
+  if (filters.studentLogin) {
+    const sl = filters.studentLogin.toLowerCase();
+    result = result.filter((e) => e.correctedLogin.toLowerCase().includes(sl));
+  }
+  if (filters.evaluatorLogin) {
+    const el = filters.evaluatorLogin.toLowerCase();
+    result = result.filter((e) => e.correctorLogin.toLowerCase().includes(el));
+  }
+  if (filters.projectName) {
+    const pn = filters.projectName.toLowerCase();
+    result = result.filter((e) => (e.projectName?.toLowerCase() ?? '').includes(pn));
+  }
+  return result;
+}
+
+function getISOWeekLabel(warsawDateStr: string): string {
+  const d = new Date(`${warsawDateStr}T00:00:00Z`);
+  const dow = d.getUTCDay();
+  const daysToMonday = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d.getTime() + daysToMonday * DAY_MS);
+  const year = monday.getUTCFullYear();
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Dow = jan4.getUTCDay() || 7;
+  const jan4Monday = new Date(jan4.getTime() - (jan4Dow - 1) * DAY_MS);
+  const weekNo = Math.floor((monday.getTime() - jan4Monday.getTime()) / (7 * DAY_MS)) + 1;
+  return `${year}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+/** Activity series with configurable granularity (hourly, daily, weekly, monthly). */
+export function buildActivitySeriesWithGranularity(
+  entries: EvaluationAnalyticsEntry[],
+  granularity: EvaluationGranularity = 'daily',
+): EvaluationActivityPoint[] {
+  const map = new Map<string, number>();
+  for (const e of entries) {
+    const date = new Date(e.filledAt);
+    const { hour, dateStr } = getWarsawComponents(date);
+    let key: string;
+    switch (granularity) {
+      case 'hourly':
+        key = `${dateStr}T${String(hour).padStart(2, '0')}:00`;
+        break;
+      case 'weekly':
+        key = getISOWeekLabel(dateStr);
+        break;
+      case 'monthly':
+        key = dateStr.slice(0, 7);
+        break;
+      default:
+        key = dateStr;
+    }
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, count]) => ({ period, count }));
+}
+
+/** Recent evaluations newest-first for the timeline feed. Deduplicates by id. */
 export function buildTimeline(entries: EvaluationAnalyticsEntry[], limit = 20): EvaluationTimelineEntry[] {
+  const seen = new Set<number>();
   return [...entries]
-    .sort((a, b) => new Date(b.filledAt).getTime() - new Date(a.filledAt).getTime())
+    .sort((a, b) => new Date(b.filledAt).getTime() - new Date(a.filledAt).getTime() || b.id - a.id)
+    .filter((e) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
     .slice(0, limit)
     .map((e) => ({
       id: e.id,
@@ -401,17 +477,21 @@ export function buildEvaluationAnalytics(
   to: Date,
   now: Date,
   source: '42-api' | 'cache',
+  filters: EvaluationFilters = {},
+  granularity: EvaluationGranularity = 'daily',
 ): EvaluationAnalyticsResponse {
   const fromMs = from.getTime();
   const toMs = to.getTime();
 
-  const entries = rawScaleTeams
+  let entries = rawScaleTeams
     .map((r) => normalizeAnalyticsEntry(r, studentsByLogin))
     .filter((e): e is EvaluationAnalyticsEntry => e !== null)
     .filter((e) => {
       const t = new Date(e.filledAt).getTime();
       return t >= fromMs && t <= toMs;
     });
+
+  entries = applyEvaluationFilters(entries, filters);
 
   const heatmap = buildHeatmap(entries);
   const heatmapSummary = buildHeatmapSummary(heatmap, entries);
@@ -420,14 +500,22 @@ export function buildEvaluationAnalytics(
   const mostEvaluatedStudents = buildMostEvaluatedStudents(entries);
   const topContributors = buildTopContributors(entries);
   const projectRankings = buildProjectRankings(entries);
-  const activitySeries = buildActivitySeries(entries);
+  const activitySeries = buildActivitySeriesWithGranularity(entries, granularity);
   const timeline = buildTimeline(entries);
   const insights = buildInsights(heatmapSummary, topEvaluators);
 
   return {
     generatedAt: now.toISOString(),
     timezone: WARSAW_TZ,
-    filters: { range: 'custom', from: from.toISOString(), to: to.toISOString() },
+    filters: {
+      range: 'custom',
+      from: from.toISOString(),
+      to: to.toISOString(),
+      studentLogin: filters.studentLogin ?? null,
+      evaluatorLogin: filters.evaluatorLogin ?? null,
+      projectName: filters.projectName ?? null,
+      granularity,
+    },
     kpi,
     heatmap,
     heatmapSummary,

@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { Router } from 'express';
 import type { AppContext } from '../appContext.js';
 import { sendData, sendError } from '../middleware/envelope.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -39,12 +39,18 @@ export function blackholeRouter(ctx: AppContext): Router {
     asyncHandler(async (_req, res) => {
       const upcomingDays = clampInt(_req.query.upcomingDays, 30, 1, 180);
       const recentDays = clampInt(_req.query.recentDays, 30, 1, 90);
+      const loginSearch = String(_req.query.loginSearch ?? '').trim() || null;
+      const minLevelRaw = Number.parseFloat(String(_req.query.minLevel ?? ''));
+      const maxLevelRaw = Number.parseFloat(String(_req.query.maxLevel ?? ''));
+      const minLevel = Number.isNaN(minLevelRaw) ? null : Math.max(0, minLevelRaw);
+      const maxLevel = Number.isNaN(maxLevelRaw) ? null : Math.max(0, maxLevelRaw);
+      const bhFilters = { loginSearch, minLevel, maxLevel };
 
       const snapshot = ctx.dataService.getCoreDatasetSnapshot();
       if (snapshot) {
         const now = new Date();
         const cursusId = snapshot.data.discovered.cursusId ?? 0;
-        const response = buildBlackHoleStatus(snapshot.data.students, now, cursusId, upcomingDays, recentDays);
+        const response = buildBlackHoleStatus(snapshot.data.students, now, cursusId, upcomingDays, recentDays, bhFilters);
         sendData(res, response, { cached: true, staleData: snapshot.cacheStatus === 'stale' });
         return;
       }
@@ -57,7 +63,7 @@ export function blackholeRouter(ctx: AppContext): Router {
 
       // Still warming — return an empty-but-valid response so the UI can show loading state.
       const now = new Date();
-      const response = buildBlackHoleStatus(EMPTY_DATASET.students, now, 0, upcomingDays, recentDays);
+      const response = buildBlackHoleStatus(EMPTY_DATASET.students, now, 0, upcomingDays, recentDays, bhFilters);
       sendData(res, response, { cached: false, warming: true });
     }),
   );

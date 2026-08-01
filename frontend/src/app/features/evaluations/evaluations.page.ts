@@ -1,17 +1,29 @@
-import { DecimalPipe, DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, interval, merge } from 'rxjs';
+import { debounceTime, switchMap } from 'rxjs/operators';
+import type { ChartConfiguration } from 'chart.js';
+import { BaseChartDirective } from 'ng2-charts';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import type {
   EvaluationAnalyticsResponse,
   EvaluationHeatmapCell,
   EvaluationRangeOption,
-  TopEvaluatorEntry,
-  TopContributorEntry,
-  EvaluationProjectRanking,
-  EvaluationTimelineEntry,
 } from '../../core/models/api.models';
 import { ApiService } from '../../core/services/api.service';
+import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
+
+type EvaluationGranularity = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
 const RANGE_OPTIONS: { label: string; value: EvaluationRangeOption }[] = [
   { label: 'Today', value: 'today' },
@@ -21,24 +33,27 @@ const RANGE_OPTIONS: { label: string; value: EvaluationRangeOption }[] = [
   { label: 'This month', value: 'thisMonth' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  ok: '#4cc9f0',
-  fail: '#f72585',
-};
+const GRANULARITY_OPTIONS: { label: string; value: EvaluationGranularity }[] = [
+  { label: 'Daily', value: 'daily' },
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Monthly', value: 'monthly' },
+];
 
-function heatmapCellColor(count: number, maxCount: number): string {
-  if (count === 0 || maxCount === 0) return 'rgba(255,255,255,0.04)';
-  const intensity = Math.min(count / maxCount, 1);
+function heatmapCellColor(count: number, p90: number): string {
+  if (count === 0 || p90 === 0) return 'rgba(255,255,255,0.04)';
+  const intensity = Math.min(count / p90, 1);
   return `rgba(76, 201, 240, ${0.12 + intensity * 0.78})`;
 }
 
 @Component({
   selector: 'app-evaluations-page',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, MatButtonToggleModule, MatIconModule],
+  imports: [DecimalPipe, DatePipe, MatButtonToggleModule, MatIconModule, BaseChartDirective, AvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="eval-page">
+
+      <!-- Header -->
       <div class="eval-page__header">
         <h1 class="eval-page__title">Evaluation Analytics</h1>
         <mat-button-toggle-group [value]="selectedRange()" (change)="onRangeChange($event.value)" aria-label="Date range">
@@ -48,6 +63,55 @@ function heatmapCellColor(count: number, maxCount: number): string {
         </mat-button-toggle-group>
       </div>
 
+      <!-- Filters -->
+      <div class="filter-row" role="search" aria-label="Evaluation filters">
+        <div class="filter-field">
+          <label class="filter-field__label" for="filter-student">Student login</label>
+          <input
+            id="filter-student"
+            class="filter-field__input"
+            type="search"
+            placeholder="alice…"
+            autocomplete="off"
+            [value]="filterStudent()"
+            (input)="onStudentFilterInput($any($event.target).value)"
+          />
+        </div>
+        <div class="filter-field">
+          <label class="filter-field__label" for="filter-evaluator">Evaluator login</label>
+          <input
+            id="filter-evaluator"
+            class="filter-field__input"
+            type="search"
+            placeholder="bob…"
+            autocomplete="off"
+            [value]="filterEvaluator()"
+            (input)="onEvaluatorFilterInput($any($event.target).value)"
+          />
+        </div>
+        <div class="filter-field">
+          <label class="filter-field__label" for="filter-project">Project name</label>
+          <input
+            id="filter-project"
+            class="filter-field__input"
+            type="search"
+            placeholder="libft…"
+            autocomplete="off"
+            [value]="filterProject()"
+            (input)="onProjectFilterInput($any($event.target).value)"
+          />
+        </div>
+        <div class="filter-field filter-field--granularity">
+          <span class="filter-field__label">Granularity</span>
+          <mat-button-toggle-group [value]="selectedGranularity()" (change)="onGranularityChange($event.value)" aria-label="Chart granularity">
+            @for (opt of granularityOptions; track opt.value) {
+              <mat-button-toggle [value]="opt.value">{{ opt.label }}</mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+        </div>
+      </div>
+
+      <!-- Loading / error / data -->
       @if (loading()) {
         <div class="eval-page__loading" role="status" aria-label="Loading evaluation analytics">
           <mat-icon class="spin">autorenew</mat-icon>
@@ -59,6 +123,7 @@ function heatmapCellColor(count: number, maxCount: number): string {
           <span>{{ error() }}</span>
         </div>
       } @else if (data(); as d) {
+
         <!-- KPI Row -->
         <div class="kpi-row">
           <div class="kpi-card">
@@ -79,23 +144,21 @@ function heatmapCellColor(count: number, maxCount: number): string {
           </div>
           <div class="kpi-card">
             <span class="kpi-card__value">{{ d.kpi.averagePerDay | number: '1.1-1' }}</span>
-            <span class="kpi-card__label">Avg per day</span>
+            <span class="kpi-card__label">Avg / day</span>
           </div>
           @if (d.kpi.mostEvaluatedProject) {
             <div class="kpi-card kpi-card--wide">
               <span class="kpi-card__value kpi-card__value--small">{{ d.kpi.mostEvaluatedProject }}</span>
-              <span class="kpi-card__label">Most evaluated project</span>
+              <span class="kpi-card__label">Top project</span>
             </div>
           }
         </div>
 
-        <!-- Total count + historical note -->
+        <!-- Meta + note -->
         <p class="eval-page__meta">
           {{ d.meta.totalEvaluations | number }} evaluation{{ d.meta.totalEvaluations !== 1 ? 's' : '' }}
           in the selected period.
-          @if (d.meta.totalEvaluations === 0) {
-            No evaluation data in this window. Try a wider range.
-          }
+          @if (d.meta.totalEvaluations === 0) { No evaluation data in this window. Try a wider range. }
         </p>
         <p class="eval-page__historical-note">{{ d.meta.note }}</p>
 
@@ -114,32 +177,55 @@ function heatmapCellColor(count: number, maxCount: number): string {
         <!-- Main grid -->
         <div class="eval-grid">
 
+          <!-- Activity Chart -->
+          <section class="panel eval-grid__chart" aria-label="Evaluation activity chart">
+            <h2 class="panel__title">Activity</h2>
+            @if (activityChartData(); as chartData) {
+              <div class="chart-container">
+                <canvas baseChart type="bar" [data]="chartData" [options]="activityChartOptions"
+                  role="img" aria-label="Evaluation activity bar chart"></canvas>
+              </div>
+            } @else {
+              <p class="empty-note">No evaluation activity in this period.</p>
+            }
+          </section>
+
           <!-- Heatmap -->
           <section class="panel eval-grid__heatmap" aria-label="Evaluation activity heatmap">
             <h2 class="panel__title">Activity Heatmap (Warsaw time)</h2>
             @if (d.meta.totalEvaluations === 0) {
               <p class="empty-note">No evaluations in this period.</p>
             } @else {
-              <div class="heatmap">
-                <div class="heatmap__labels">
-                  @for (label of heatmapDayLabels; track label) {
-                    <span class="heatmap__day-label">{{ label }}</span>
-                  }
+              <div class="heatmap-wrap">
+                <div class="heatmap">
+                  <div class="heatmap__day-labels" aria-hidden="true">
+                    @for (label of heatmapDayLabels; track label) {
+                      <span class="heatmap__day-label">{{ label }}</span>
+                    }
+                  </div>
+                  <div class="heatmap__main">
+                    <div class="heatmap__grid" role="grid" aria-label="Hourly activity grid">
+                      @for (cell of d.heatmap; track cell.dayIndex + '-' + cell.hour) {
+                        <div
+                          class="heatmap__cell"
+                          role="gridcell"
+                          [style.background]="cellColor(cell)"
+                          [title]="cell.count + ' evaluations — ' + cell.dayLabel + ' ' + cell.hour + ':00' + (cell.topProject ? ' · ' + cell.topProject : '') + (cell.topEvaluator ? ' · top: ' + cell.topEvaluator : '') + ' (Warsaw)'"
+                          [attr.aria-label]="cell.count + ' evaluations on ' + cell.dayLabel + ' at ' + cell.hour + ':00 Warsaw'"
+                        ></div>
+                      }
+                    </div>
+                    <div class="heatmap__hour-labels" aria-hidden="true">
+                      @for (h of heatmapHourLabels; track h) {
+                        <span>{{ h }}</span>
+                      }
+                    </div>
+                  </div>
                 </div>
-                <div class="heatmap__grid">
-                  @for (cell of d.heatmap; track cell.dayIndex + '-' + cell.hour) {
-                    <div
-                      class="heatmap__cell"
-                      [style.background]="cellColor(cell, heatmapMax())"
-                      [title]="cell.count + ' evaluations on ' + cell.dayLabel + ' ' + cell.hour + ':00 Warsaw'"
-                      [attr.aria-label]="cell.count + ' evaluations'"
-                    ></div>
-                  }
-                </div>
-                <div class="heatmap__hour-labels">
-                  @for (h of heatmapHourLabels; track h) {
-                    <span>{{ h }}</span>
-                  }
+                <div class="heatmap__legend" aria-label="Color scale from low to high activity">
+                  <span class="heatmap__legend-text">Low</span>
+                  <div class="heatmap__legend-bar" aria-hidden="true"></div>
+                  <span class="heatmap__legend-text">High</span>
                 </div>
               </div>
               @if (d.heatmapSummary.peakHourLabel) {
@@ -161,9 +247,10 @@ function heatmapCellColor(count: number, maxCount: number): string {
                 @for (ev of d.topEvaluators; track ev.login; let i = $index) {
                   <li class="rank-list__item">
                     <span class="rank-list__rank">#{{ i + 1 }}</span>
+                    <app-avatar [imageUrl]="ev.imageUrl" [name]="ev.displayName" [size]="32" />
                     <div class="rank-list__info">
                       <span class="rank-list__name">{{ ev.displayName }}</span>
-                      <span class="rank-list__login">{{ ev.login }}</span>
+                      <span class="rank-list__login">{{ ev.login }} · Lv {{ ev.level | number: '1.0-1' }}</span>
                     </div>
                     <div class="rank-list__stats">
                       <span class="rank-list__primary">{{ ev.evaluationCount }}</span>
@@ -185,6 +272,7 @@ function heatmapCellColor(count: number, maxCount: number): string {
                 @for (st of d.mostEvaluatedStudents; track st.login; let i = $index) {
                   <li class="rank-list__item">
                     <span class="rank-list__rank">#{{ i + 1 }}</span>
+                    <app-avatar [imageUrl]="st.imageUrl" [name]="st.displayName" [size]="32" />
                     <div class="rank-list__info">
                       <span class="rank-list__name">{{ st.displayName }}</span>
                       <span class="rank-list__login">{{ st.login }}</span>
@@ -210,6 +298,7 @@ function heatmapCellColor(count: number, maxCount: number): string {
                 @for (c of d.topContributors; track c.login; let i = $index) {
                   <li class="rank-list__item">
                     <span class="rank-list__rank">#{{ i + 1 }}</span>
+                    <app-avatar [imageUrl]="c.imageUrl" [name]="c.displayName" [size]="32" />
                     <div class="rank-list__info">
                       <span class="rank-list__name">{{ c.displayName }}</span>
                       <span class="rank-list__login">{{ c.login }}</span>
@@ -250,8 +339,8 @@ function heatmapCellColor(count: number, maxCount: number): string {
             }
           </section>
 
-          <!-- Evaluation Timeline -->
-          <section class="panel eval-grid__timeline" aria-label="Evaluation timeline">
+          <!-- Timeline -->
+          <section class="panel eval-grid__timeline" aria-label="Recent evaluations timeline">
             <h2 class="panel__title">Recent Evaluations</h2>
             @if (d.timeline.length === 0) {
               <p class="empty-note">No evaluations in this period.</p>
@@ -279,6 +368,7 @@ function heatmapCellColor(count: number, maxCount: number): string {
               </ol>
             }
           </section>
+
         </div>
       }
     </div>
@@ -313,7 +403,6 @@ function heatmapCellColor(count: number, maxCount: number): string {
       gap: var(--space-3);
       color: var(--color-text-secondary);
       padding: var(--space-6);
-
       p { margin: 0; }
     }
 
@@ -340,6 +429,58 @@ function heatmapCellColor(count: number, maxCount: number): string {
       font-style: italic;
     }
 
+    /* ── Filters ──────────────────────────────────────── */
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+    }
+
+    .filter-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .filter-field--granularity {
+      margin-left: auto;
+    }
+
+    .filter-field__label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+    }
+
+    .filter-field__input {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      color: var(--color-text);
+      font-size: 0.88rem;
+      padding: 6px 10px;
+      min-width: 160px;
+      outline: none;
+      transition: border-color 150ms;
+
+      &:focus {
+        border-color: var(--color-accent);
+      }
+
+      &::placeholder {
+        color: var(--color-text-muted);
+      }
+    }
+
+    /* ── KPI ──────────────────────────────────────────── */
+
     .kpi-row {
       display: flex;
       flex-wrap: wrap;
@@ -357,11 +498,10 @@ function heatmapCellColor(count: number, maxCount: number): string {
       border-radius: var(--radius-lg);
       min-width: 100px;
       gap: var(--space-1);
+      text-align: center;
     }
 
-    .kpi-card--wide {
-      min-width: 180px;
-    }
+    .kpi-card--wide { min-width: 180px; }
 
     .kpi-card__value {
       font-size: 1.8rem;
@@ -370,9 +510,7 @@ function heatmapCellColor(count: number, maxCount: number): string {
       line-height: 1;
     }
 
-    .kpi-card__value--small {
-      font-size: 1.1rem;
-    }
+    .kpi-card__value--small { font-size: 1.1rem; }
 
     .kpi-card__label {
       font-size: 0.72rem;
@@ -380,6 +518,8 @@ function heatmapCellColor(count: number, maxCount: number): string {
       letter-spacing: 0.05em;
       color: var(--color-text-muted);
     }
+
+    /* ── Insights ─────────────────────────────────────── */
 
     .insights-row {
       display: flex;
@@ -398,14 +538,14 @@ function heatmapCellColor(count: number, maxCount: number): string {
       font-size: 0.85rem;
     }
 
-    .insight-chip__label {
-      color: var(--color-text-muted);
-    }
+    .insight-chip__label { color: var(--color-text-muted); }
 
     .insight-chip__value {
       font-weight: 700;
       color: var(--color-accent);
     }
+
+    /* ── Grid ─────────────────────────────────────────── */
 
     .eval-grid {
       display: grid;
@@ -413,13 +553,9 @@ function heatmapCellColor(count: number, maxCount: number): string {
       gap: var(--space-5);
     }
 
-    .eval-grid__heatmap {
-      grid-column: 1 / -1;
-    }
-
-    .eval-grid__timeline {
-      grid-column: 1 / -1;
-    }
+    .eval-grid__chart   { grid-column: 1 / -1; }
+    .eval-grid__heatmap { grid-column: 1 / -1; }
+    .eval-grid__timeline { grid-column: 1 / -1; }
 
     .panel {
       background: var(--glass-bg);
@@ -449,24 +585,46 @@ function heatmapCellColor(count: number, maxCount: number): string {
       font-size: 0.9rem;
     }
 
-    .heatmap {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
+    /* ── Activity Chart ───────────────────────────────── */
+
+    .chart-container {
+      position: relative;
+      height: 220px;
+    }
+
+    /* ── Heatmap ──────────────────────────────────────── */
+
+    .heatmap-wrap {
       overflow-x: auto;
     }
 
-    .heatmap__labels {
-      display: grid;
-      grid-template-rows: repeat(7, 16px);
+    .heatmap {
+      display: flex;
+      align-items: flex-start;
+      min-width: 620px;
+      gap: var(--space-2);
+    }
+
+    .heatmap__day-labels {
+      display: flex;
+      flex-direction: column;
       gap: 3px;
-      padding-right: var(--space-2);
-      font-size: 0.72rem;
-      color: var(--color-text-muted);
+      padding-top: 1px;
     }
 
     .heatmap__day-label {
+      height: 16px;
       line-height: 16px;
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+
+    .heatmap__main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
     }
 
     .heatmap__grid {
@@ -474,17 +632,14 @@ function heatmapCellColor(count: number, maxCount: number): string {
       grid-template-columns: repeat(24, 1fr);
       grid-template-rows: repeat(7, 16px);
       gap: 3px;
-      min-width: 600px;
     }
 
     .heatmap__cell {
       border-radius: 2px;
-      transition: opacity 200ms;
       cursor: default;
-    }
+      transition: opacity 150ms;
 
-    .heatmap__cell:hover {
-      opacity: 0.7;
+      &:hover { opacity: 0.7; }
     }
 
     .heatmap__hour-labels {
@@ -492,19 +647,34 @@ function heatmapCellColor(count: number, maxCount: number): string {
       justify-content: space-between;
       font-size: 0.65rem;
       color: var(--color-text-muted);
-      min-width: 600px;
       padding: 0 2px;
-
-      span:nth-child(n+2) {
-        text-align: center;
-      }
     }
+
+    .heatmap__legend {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+      font-size: 0.7rem;
+      color: var(--color-text-muted);
+    }
+
+    .heatmap__legend-bar {
+      width: 140px;
+      height: 10px;
+      border-radius: 4px;
+      background: linear-gradient(to right, rgba(76,201,240,0.10), rgba(76,201,240,0.90));
+    }
+
+    .heatmap__legend-text { white-space: nowrap; }
 
     .heatmap__summary {
       margin: var(--space-3) 0 0;
       font-size: 0.85rem;
       color: var(--color-text-secondary);
     }
+
+    /* ── Rank lists ───────────────────────────────────── */
 
     .rank-list {
       list-style: none;
@@ -523,11 +693,9 @@ function heatmapCellColor(count: number, maxCount: number): string {
       border-radius: var(--radius-md);
       background: rgba(255,255,255,0.03);
       border: 1px solid transparent;
-      transition: border-color 200ms;
-    }
+      transition: border-color 150ms;
 
-    .rank-list__item:hover {
-      border-color: var(--glass-border);
+      &:hover { border-color: var(--glass-border); }
     }
 
     .rank-list__rank {
@@ -574,6 +742,8 @@ function heatmapCellColor(count: number, maxCount: number): string {
       color: var(--color-text-muted);
     }
 
+    /* ── Timeline ─────────────────────────────────────── */
+
     .timeline-list {
       list-style: none;
       margin: 0;
@@ -610,40 +780,35 @@ function heatmapCellColor(count: number, maxCount: number): string {
       gap: 2px;
     }
 
-    .timeline-item__who {
-      font-size: 0.9rem;
-    }
+    .timeline-item__who { font-size: 0.9rem; }
 
     .timeline-item__meta {
       font-size: 0.75rem;
       color: var(--color-text-muted);
     }
 
-    .spin {
-      animation: spin 1s linear infinite;
-    }
+    /* ── Misc ─────────────────────────────────────────── */
+
+    .spin { animation: spin 1s linear infinite; }
 
     @keyframes spin {
       from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+      to   { transform: rotate(360deg); }
     }
 
     @media (max-width: 900px) {
-      .eval-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .eval-grid__heatmap,
-      .eval-grid__timeline {
-        grid-column: 1;
-      }
+      .eval-grid { grid-template-columns: 1fr; }
+      .eval-grid__chart, .eval-grid__heatmap, .eval-grid__timeline { grid-column: 1; }
+      .filter-field--granularity { margin-left: 0; }
     }
   `,
 })
 export class EvaluationsPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly rangeOptions = RANGE_OPTIONS;
+  protected readonly granularityOptions = GRANULARITY_OPTIONS;
   protected readonly heatmapDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   protected readonly heatmapHourLabels = Array.from({ length: 9 }, (_, i) => `${String(i * 3).padStart(2, '0')}:00`);
 
@@ -651,36 +816,120 @@ export class EvaluationsPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly data = signal<EvaluationAnalyticsResponse | null>(null);
   protected readonly selectedRange = signal<EvaluationRangeOption>('last7Days');
+  protected readonly selectedGranularity = signal<EvaluationGranularity>('daily');
+  protected readonly filterStudent = signal('');
+  protected readonly filterEvaluator = signal('');
+  protected readonly filterProject = signal('');
 
-  protected readonly heatmapMax = computed(() => {
+  private readonly reload$ = new Subject<void>();
+  private readonly filterChange$ = new Subject<void>();
+
+  /** 90th-percentile count used for robust heatmap color normalization. */
+  protected readonly heatmapP90 = computed(() => {
     const d = this.data();
-    if (!d) return 0;
-    return Math.max(...d.heatmap.map((c) => c.count), 1);
+    if (!d) return 1;
+    const sorted = d.heatmap.map((c) => c.count).filter((c) => c > 0).sort((a, b) => a - b);
+    if (sorted.length === 0) return 1;
+    return sorted[Math.floor(sorted.length * 0.9)] ?? 1;
   });
 
-  protected readonly cellColor = (cell: EvaluationHeatmapCell, max: number) => heatmapCellColor(cell.count, max);
+  protected readonly cellColor = (cell: EvaluationHeatmapCell): string =>
+    heatmapCellColor(cell.count, this.heatmapP90());
+
+  protected readonly activityChartData = computed((): ChartConfiguration<'bar'>['data'] | null => {
+    const d = this.data();
+    if (!d || d.activitySeries.length === 0) return null;
+    return {
+      labels: d.activitySeries.map((p) => p.period),
+      datasets: [
+        {
+          label: 'Evaluations',
+          data: d.activitySeries.map((p) => p.count),
+          backgroundColor: 'rgba(76, 201, 240, 0.55)',
+          borderColor: 'rgba(76, 201, 240, 0.9)',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ],
+    };
+  });
+
+  protected readonly activityChartOptions: ChartConfiguration<'bar'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        ticks: { color: '#9aabb5', maxRotation: 45 },
+        grid: { color: 'rgba(255,255,255,0.05)' },
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { color: '#9aabb5', precision: 0 },
+        grid: { color: 'rgba(255,255,255,0.05)' },
+      },
+    },
+  };
 
   ngOnInit(): void {
-    this.loadData();
+    merge(
+      this.reload$,
+      this.filterChange$.pipe(debounceTime(350)),
+      interval(5 * 60 * 1000), // Auto-refresh every 5 minutes; backend serves from 30-min cache
+    )
+      .pipe(
+        switchMap(() => {
+          this.loading.set(true);
+          this.error.set(null);
+          return this.api.getEvaluationAnalytics(
+            this.selectedRange(),
+            {
+              studentLogin: this.filterStudent() || null,
+              evaluatorLogin: this.filterEvaluator() || null,
+              projectName: this.filterProject() || null,
+            },
+            this.selectedGranularity(),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (envelope) => {
+          this.data.set(envelope.data);
+          this.loading.set(false);
+        },
+        error: (err: Error) => {
+          this.error.set(err?.message ?? 'Failed to load evaluation analytics.');
+          this.loading.set(false);
+        },
+      });
+
+    this.reload$.next();
   }
 
   protected onRangeChange(range: EvaluationRangeOption): void {
     this.selectedRange.set(range);
-    this.loadData();
+    this.reload$.next();
   }
 
-  private loadData(): void {
-    this.loading.set(true);
-    this.error.set(null);
-    this.api.getEvaluationAnalytics(this.selectedRange()).subscribe({
-      next: (envelope) => {
-        this.data.set(envelope.data);
-        this.loading.set(false);
-      },
-      error: (err: Error) => {
-        this.error.set(err?.message ?? 'Failed to load evaluation analytics.');
-        this.loading.set(false);
-      },
-    });
+  protected onGranularityChange(g: EvaluationGranularity): void {
+    this.selectedGranularity.set(g);
+    this.reload$.next();
+  }
+
+  protected onStudentFilterInput(value: string): void {
+    this.filterStudent.set(value);
+    this.filterChange$.next();
+  }
+
+  protected onEvaluatorFilterInput(value: string): void {
+    this.filterEvaluator.set(value);
+    this.filterChange$.next();
+  }
+
+  protected onProjectFilterInput(value: string): void {
+    this.filterProject.set(value);
+    this.filterChange$.next();
   }
 }
