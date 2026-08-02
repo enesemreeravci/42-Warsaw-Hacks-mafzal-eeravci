@@ -6,6 +6,7 @@ import type {
   AppConfigResponse,
   BlackHoleStatusResponse,
   CampusEvent,
+  ClusterOccupancyResponse,
   CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
@@ -19,6 +20,9 @@ import type {
   ProjectCompletion,
   ProjectListing,
   ProjectMetric,
+  ReturningPeriodOption,
+  ReturningSortOption,
+  ReturningStudentsResponse,
   SortDirection,
   SortField,
   StudentDetail,
@@ -26,6 +30,7 @@ import type {
   StudentSummary,
   TopStudentMetric,
   WeeklyCampusActivityResponse,
+  WeeklyTopContributorsResponse,
 } from '../models/api.models';
 
 /** Thin typed wrapper around the backend-for-frontend REST API. Every call is relative to /api. */
@@ -81,6 +86,24 @@ export class ApiService {
 
   getWeeklyCampusActivity(): Observable<ApiEnvelope<WeeklyCampusActivityResponse>> {
     return this.http.get<ApiEnvelope<WeeklyCampusActivityResponse>>(`${this.base}/dashboard/weekly-campus-activity`);
+  }
+
+  getClusterOccupancy(): Observable<ApiEnvelope<ClusterOccupancyResponse>> {
+    return this.http.get<ApiEnvelope<ClusterOccupancyResponse>>(`${this.base}/dashboard/cluster-occupancy`);
+  }
+
+  getWeeklyContributorLeaderboard(periodDays = 7): Observable<ApiEnvelope<WeeklyTopContributorsResponse>> {
+    const params = new HttpParams().set('periodDays', periodDays);
+    return this.http.get<ApiEnvelope<WeeklyTopContributorsResponse>>(`${this.base}/dashboard/weekly-top-contributors`, { params });
+  }
+
+  getReturningStudents(
+    period: ReturningPeriodOption = 'last7Days',
+    threshold = 14,
+    sort: ReturningSortOption = 'recent',
+  ): Observable<ApiEnvelope<ReturningStudentsResponse>> {
+    const params = new HttpParams().set('period', period).set('threshold', threshold).set('sort', sort);
+    return this.http.get<ApiEnvelope<ReturningStudentsResponse>>(`${this.base}/students/returning`, { params });
   }
 
   getUpcomingEvents(limit = 5): Observable<ApiEnvelope<CampusEvent[]>> {

@@ -182,11 +182,17 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       gap: var(--space-1);
     }
 
+    // Matches dashboard.page.scss's shared ".panel h3" heading style (COMPLETION TREND, TOP BY
+    // LEVEL, etc.) - this component renders its own title internally instead of via the page's
+    // <h3> wrapper (see dashboard.page.html), so it has to replicate that look explicitly rather
+    // than inheriting it.
     .board__title {
       margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-secondary);
     }
 
     .board__meta {
@@ -459,8 +465,11 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
     /* TV mode — the section's identity ("Most Campus Time" / "Most Recent Session Started") is
      * shown once in the unified TV header bar instead of repeating it on the card. The "last
-     * updated"/range meta line stays, since it's live info rather than a redundant label. */
+     * updated"/range meta line stays, since it's live info rather than a redundant label. With
+     * the title gone, it's the only text in the header, so it's nudged toward the right instead
+     * of sitting isolated at the far left edge. */
     :host-context(.dashboard--tv) .board__title { display: none; }
+    :host-context(.dashboard--tv) .board__meta { text-align: right; }
 
     :host-context(.dashboard--tv) .board__chart-total   { font-size: 2.1rem; }
     :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }

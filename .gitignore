@@ -32,6 +32,9 @@ coverage/
 # Test artifacts
 /frontend/.angular/cache
 
+# Runtime state (coalition score snapshot history - see backend/src/services/coalitionSnapshotStore.ts)
+backend/data/
+
 
 
 .claude/settings.local.json

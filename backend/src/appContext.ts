@@ -1,6 +1,7 @@
 import type { AppConfig } from './config/env.js';
 import type { Logger } from './config/logger.js';
 import { BackgroundRefreshService } from './services/backgroundRefresh.js';
+import { CoalitionSnapshotScheduler } from './services/coalitionSnapshotScheduler.js';
 import { DataService } from './services/dataService.js';
 import { DiscoveryService } from './services/discoveryService.js';
 import { Ft42ApiClient } from './services/ft42ApiClient.js';
@@ -21,6 +22,7 @@ export interface AppContext {
   dataService: DataService;
   statusService: StatusService;
   backgroundRefresh: BackgroundRefreshService;
+  coalitionSnapshotScheduler: CoalitionSnapshotScheduler;
   startedAt: Date;
   refreshInProgress: boolean;
 }
@@ -33,6 +35,7 @@ export function createAppContext(config: AppConfig, logger: Logger): AppContext 
   const dataService = new DataService(config, apiClient, discoveryService, logger);
   const statusService = new StatusService(apiClient, tokenManager, logger);
   const backgroundRefresh = new BackgroundRefreshService(dataService, statusService, logger);
+  const coalitionSnapshotScheduler = new CoalitionSnapshotScheduler(dataService, logger);
 
   return {
     config,
@@ -43,6 +46,7 @@ export function createAppContext(config: AppConfig, logger: Logger): AppContext 
     dataService,
     statusService,
     backgroundRefresh,
+    coalitionSnapshotScheduler,
     startedAt: new Date(),
     refreshInProgress: false,
   };

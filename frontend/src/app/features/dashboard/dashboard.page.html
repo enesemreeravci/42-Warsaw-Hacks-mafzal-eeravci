@@ -22,7 +22,7 @@
 
     @if (partialErrorEntries().length > 0) {
       <div class="inline-banner" role="alert">
-        {{ partialErrorEntries().length }} of 11 dashboard sections failed to refresh and are showing older data:
+        {{ partialErrorEntries().length }} of 12 dashboard sections failed to refresh and are showing older data:
         @for (entry of partialErrorEntries(); track entry.field) {
           <span class="inline-banner__item">{{ entry.field }} ({{ entry.message }})</span>
         }
@@ -104,7 +104,12 @@
       </section>
 
       <section class="section section--weekly-activity" aria-label="Weekly campus activity">
-        <div class="panel">
+        <div
+          class="panel"
+          [appNarratorTarget]="'weekly-campus-time'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'weekly-campus-time'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <app-weekly-campus-activity-board
             title="Most Campus Time — Last 7 Days"
             metric="time"
@@ -112,7 +117,12 @@
             [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
           />
         </div>
-        <div class="panel">
+        <div
+          class="panel"
+          [appNarratorTarget]="'weekly-sessions'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'weekly-sessions'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
           <app-weekly-campus-activity-board
             title="Most Sessions Started — Last 7 Days"
             metric="sessions"
@@ -193,9 +203,21 @@
               <app-weekly-top-coalitions [standings]="store.data().coalitions" />
             }
             @case (10) {
-              <app-transcendence-completed-showcase />
+              <app-cluster-occupancy-map [occupancy]="store.data().clusterOccupancy" />
             }
             @case (11) {
+              <app-evaluation-heatmap />
+            }
+            @case (12) {
+              <app-returning-students />
+            }
+            @case (13) {
+              <app-weekly-contributors-leaderboard />
+            }
+            @case (14) {
+              <app-transcendence-completed-showcase />
+            }
+            @case (15) {
               <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
             }
           }

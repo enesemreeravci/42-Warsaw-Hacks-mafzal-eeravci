@@ -4,6 +4,10 @@ import { AvatarComponent } from '../../../shared/components/avatar/avatar.compon
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import type { StudentRanking } from '../../../core/models/api.models';
 
+/** Per-row accent color for the project-count value - same palette/reasoning as
+ * top-students-by-level.component.ts. */
+const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38e19a', '#16f0a6', '#ff5470'];
+
 /** Independent "Top by validated projects" ranking panel - split out from what used to be a
  * combined community-progress component so it can fail, refresh, and be highlighted on its own. */
 @Component({
@@ -17,7 +21,7 @@ import type { StudentRanking } from '../../../core/models/api.models';
     } @else {
       <ol class="student-rank">
         @for (student of students(); track student.id; let i = $index) {
-          <li>
+          <li [style.--rank-color]="rankColors[i % rankColors.length]">
             <a [routerLink]="['/students', student.login]">
               <span class="student-rank__pos">{{ i + 1 }}</span>
               <app-avatar [imageUrl]="student.imageUrl" [name]="student.displayName" [size]="36" />
@@ -72,12 +76,15 @@ import type { StudentRanking } from '../../../core/models/api.models';
     }
 
     .student-rank__value {
-      color: var(--color-text-muted);
+      color: var(--rank-color, var(--color-text-muted));
       font-variant-numeric: tabular-nums;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
+      font-weight: 800;
     }
   `,
 })
 export class TopStudentsByCompletedComponent {
   readonly students = input.required<StudentRanking[]>();
+
+  protected readonly rankColors = RANK_COLORS;
 }

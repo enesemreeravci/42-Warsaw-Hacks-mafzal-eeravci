@@ -247,6 +247,134 @@ export interface WeeklyCampusActivityResponse {
   meta: WeeklyCampusActivityMeta;
 }
 
+/** One workstation, live-occupancy + trailing-7-day usage combined - see
+ * backend/src/services/clusterOccupancy.ts. The 42 API exposes no hardware/capacity inventory,
+ * so `cluster`/`host` reflect only observed session records, never a hardcoded seat list. */
+export interface ClusterWorkstation {
+  host: string;
+  cluster: string;
+  occupied: boolean;
+  student: {
+    id: number;
+    login: string;
+    displayName: string;
+    imageUrl: string | null;
+    level: number;
+    coalition: { name: string; color: string | null } | null;
+  } | null;
+  sessionMinutes: number | null;
+  loginAt: string | null;
+  usageHoursLastWeek: number;
+  sessionsLastWeek: number;
+}
+
+export interface ClusterSummary {
+  cluster: string;
+  workstations: ClusterWorkstation[];
+  occupiedCount: number;
+  knownSeatCount: number;
+  averageSessionMinutes: number;
+  longestSessionMinutes: number;
+  mostUsedHost: string | null;
+}
+
+export interface ClusterOccupancyResponse {
+  clusters: ClusterSummary[];
+  summary: {
+    studentsOnline: number;
+    knownSeatCount: number;
+    mostOccupiedCluster: string | null;
+    mostPopularComputer: string | null;
+    averageSessionMinutes: number;
+  };
+  meta: {
+    campusId: number;
+    cursusId: number;
+    source: '42-api' | 'cache';
+    lastUpdated: string;
+    limitation: string;
+  };
+}
+
+/** A student whose latest session in the reporting period followed a gap of at least the
+ * configured inactivity threshold since their previous one - see
+ * backend/src/services/returningStudents.ts. Never fabricated: a student is only ever included
+ * when the backend could confidently measure the gap from real session history. */
+export interface ReturningStudentEntry {
+  userId: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  coalition: { name: string; color: string | null } | null;
+  returnedAt: string;
+  previousVisitAt: string;
+  inactiveDays: number;
+  currentlyOnline: boolean;
+  host: string | null;
+}
+
+export type ReturningSortOption = 'recent' | 'longestAbsence' | 'level' | 'login';
+export type ReturningPeriodOption = 'today' | 'last7Days' | 'thisWeek' | 'thisMonth' | 'custom';
+
+export interface ReturningStudentsResponse {
+  period: { start: string; end: string };
+  inactivityThresholdDays: number;
+  totalReturningStudents: number;
+  students: ReturningStudentEntry[];
+  meta: {
+    campusId: number;
+    cursusId: number;
+    source: '42-api' | 'cache';
+    lastUpdated: string;
+    limitation: string;
+  };
+}
+
+/** One student's coalition-points delta over the selected period, computed strictly from two
+ * real historical snapshots (see backend/src/services/weeklyTopContributors.ts) - never from
+ * current totals alone. */
+export interface WeeklyContributorEntry {
+  rank: number;
+  userId: number;
+  login: string;
+  displayName: string;
+  imageUrl: string | null;
+  level: number;
+  coalition: { id: number; name: string; color: string | null } | null;
+  pointsEarned: number;
+  previousRank: number | null;
+  rankChange: number | null;
+}
+
+export interface CoalitionPointsGained {
+  coalitionId: number;
+  name: string;
+  color: string | null;
+  pointsGained: number;
+}
+
+export interface WeeklyTopContributorsResponse {
+  available: boolean;
+  message: string | null;
+  periodDays: number;
+  generatedAt: string;
+  contributors: WeeklyContributorEntry[];
+  coalitionComparison: CoalitionPointsGained[];
+  summary: {
+    topContributor: { login: string; displayName: string; pointsEarned: number } | null;
+    mostActiveCoalition: { name: string; pointsGained: number } | null;
+    totalPointsEarned: number;
+    activeContributors: number;
+  };
+  meta: {
+    campusId: number;
+    cursusId: number;
+    snapshotCount: number;
+    oldestSnapshotAt: string | null;
+  };
+}
+
 /** A normalized `/v2/campus/:id/events` record - see backend/src/services/events.ts. */
 export interface CampusEvent {
   id: number;

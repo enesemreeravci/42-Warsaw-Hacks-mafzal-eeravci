@@ -3,9 +3,42 @@ import type { AppContext } from '../appContext.js';
 import { sendData, sendError } from '../middleware/envelope.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import type { StudentSummary } from '../models/types.js';
+import type { ReturningSortOption } from '../services/returningStudents.js';
 
 const SORT_FIELDS = ['level', 'login', 'completedProjects', 'lastCompletion'] as const;
 type SortField = (typeof SORT_FIELDS)[number];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+type ReturningPeriodOption = 'today' | 'last7Days' | 'thisWeek' | 'thisMonth' | 'custom';
+const RETURNING_SORT_OPTIONS = ['recent', 'longestAbsence', 'level', 'login'] as const;
+const RETURNING_THRESHOLD_OPTIONS = [7, 14, 30, 60] as const;
+
+/**
+ * Duration-based (not Warsaw-calendar-exact) period parsing - "thisWeek" is a 7-day rolling
+ * window rather than a strict Monday-start week, and "thisMonth" is a 30-day rolling window.
+ * That precision doesn't matter here the way it does for the evaluation heatmap's day/hour
+ * bucketing; an approximate reporting window is fine for "which students came back recently".
+ */
+function parseReturningPeriod(option: string, fromParam: string, toParam: string, now: Date): { start: Date; end: Date } {
+  switch (option as ReturningPeriodOption) {
+    case 'today':
+      return { start: new Date(now.getTime() - DAY_MS), end: now };
+    case 'thisMonth':
+      return { start: new Date(now.getTime() - 30 * DAY_MS), end: now };
+    case 'custom': {
+      const from = fromParam ? new Date(fromParam) : new Date(now.getTime() - 7 * DAY_MS);
+      const to = toParam ? new Date(toParam) : now;
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
+        return { start: new Date(now.getTime() - 7 * DAY_MS), end: now };
+      }
+      return { start: from, end: to };
+    }
+    case 'thisWeek':
+    case 'last7Days':
+    default:
+      return { start: new Date(now.getTime() - 7 * DAY_MS), end: now };
+  }
+}
 
 function sortStudents(students: StudentSummary[], sort: SortField, direction: 'asc' | 'desc'): StudentSummary[] {
   const factor = direction === 'asc' ? 1 : -1;
@@ -75,6 +108,31 @@ export function studentsRouter(ctx: AppContext): Router {
         { items, page, pageSize, totalItems, totalPages },
         { cached: true, staleData: snapshot.cacheStatus === 'stale', partialHistory: snapshot.partialHistory },
       );
+    }),
+  );
+
+  // Registered before '/students/:login' - Express matches route paths in order, and ':login'
+  // would otherwise greedily swallow the literal path segment "returning".
+  router.get(
+    '/students/returning',
+    asyncHandler(async (req, res) => {
+      const now = new Date();
+      const period = parseReturningPeriod(
+        String(req.query.period ?? 'last7Days'),
+        String(req.query.from ?? ''),
+        String(req.query.to ?? ''),
+        now,
+      );
+      const threshold = RETURNING_THRESHOLD_OPTIONS.includes(Number(req.query.threshold) as (typeof RETURNING_THRESHOLD_OPTIONS)[number])
+        ? Number(req.query.threshold)
+        : 14;
+      const sort: ReturningSortOption = RETURNING_SORT_OPTIONS.includes(req.query.sort as ReturningSortOption)
+        ? (req.query.sort as ReturningSortOption)
+        : 'recent';
+
+      const result = await ctx.dataService.getReturningStudents(period, threshold, sort);
+      const isStale = result.meta.source === 'cache';
+      sendData(res, result, { cached: isStale, staleData: isStale });
     }),
   );
 

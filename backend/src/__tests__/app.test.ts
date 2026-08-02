@@ -6,6 +6,7 @@ import type { AppContext } from '../appContext.js';
 import { loadConfig } from '../config/env.js';
 import { createLogger } from '../config/logger.js';
 import { BackgroundRefreshService } from '../services/backgroundRefresh.js';
+import { CoalitionSnapshotScheduler } from '../services/coalitionSnapshotScheduler.js';
 import { DataService } from '../services/dataService.js';
 import { StatusService } from '../services/statusService.js';
 import type { Ft42ApiClient } from '../services/ft42ApiClient.js';
@@ -86,6 +87,7 @@ beforeAll(async () => {
   const dataService = new DataService(config, fakeApiClient, fakeDiscoveryService, logger);
   const statusService = new StatusService(fakeApiClient, fakeTokenManager, logger);
   const backgroundRefresh = new BackgroundRefreshService(dataService, statusService, logger);
+  const coalitionSnapshotScheduler = new CoalitionSnapshotScheduler(dataService, logger);
 
   const ctx: AppContext = {
     config,
@@ -96,6 +98,7 @@ beforeAll(async () => {
     dataService,
     statusService,
     backgroundRefresh,
+    coalitionSnapshotScheduler,
     startedAt: new Date(),
     refreshInProgress: false,
   };

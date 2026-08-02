@@ -1,6 +1,7 @@
 import type { AppConfig } from '../config/env.js';
 import type { Logger } from '../config/logger.js';
 import type {
+  ClusterOccupancyResponse,
   CoalitionStanding,
   EvaluationEntry,
   ProjectCompletion,
@@ -15,14 +16,28 @@ import type {
   StudentDetail,
   StudentSummary,
 } from '../models/types.js';
+import path from 'node:path';
 import { TtlCache, type CacheGetResult } from '../utils/cache.js';
+import { buildClusterOccupancy, type CoalitionRef } from './clusterOccupancy.js';
+import { CoalitionSnapshotStore } from './coalitionSnapshotStore.js';
 import { buildCoalitionStandings, buildTopContributors, buildWeeklyPointsByCoalition, buildWeeklyTopContributors } from './coalitions.js';
 import { buildRecentEvaluations } from './evaluations.js';
 import { buildUpcomingEvents, type CampusEvent } from './events.js';
 import { isCurrentProject, normalizeProjectCompletion, normalizeStudentSummary, selectCursusRecord } from './normalize.js';
 import type { DiscoveredConfig, DiscoveryService } from './discoveryService.js';
 import type { Ft42ApiClient } from './ft42ApiClient.js';
-import { buildWeeklyCampusActivity, getLastSevenDaysRange, type WeeklyCampusActivityResponse } from './weeklyCampusActivity.js';
+import { buildReturningStudents, type ReturningSortOption, type ReturningStudentsResponse } from './returningStudents.js';
+import {
+  buildWeeklyCampusActivity,
+  getLastSevenDaysRange,
+  type ReportingPeriod,
+  type WeeklyCampusActivityResponse,
+} from './weeklyCampusActivity.js';
+import {
+  buildWeeklyContributorLeaderboard,
+  type ContributorCoalitionRef,
+  type WeeklyTopContributorsResponse,
+} from './weeklyTopContributors.js';
 import { dedupeById } from '../utils/dedupe.js';
 
 export interface CurrentProjectRef {
@@ -85,20 +100,45 @@ const WEEKLY_ACTIVITY_TTL_MS = 45 * 60 * 1000;
 // other maxPages bounds in this file.
 const WEEKLY_ACTIVITY_LOCATIONS_MAX_PAGES = 100;
 
+const CLUSTER_ACTIVE_KEY = 'cluster-active-locations';
+// Live occupancy should feel close to real-time on a TV display, so this is much shorter than
+// the other location-backed caches (WEEKLY_ACTIVITY_TTL_MS = 45min).
+const CLUSTER_ACTIVE_TTL_MS = 30 * 1000;
+const CLUSTER_HISTORY_KEY = 'cluster-history-locations';
+// Usage history changes slowly - same cadence as Weekly Campus Activity.
+const CLUSTER_HISTORY_TTL_MS = WEEKLY_ACTIVITY_TTL_MS;
+const COALITION_MEMBERSHIP_KEY = 'coalition-membership';
+const COALITION_MEMBERSHIP_TTL_MS = WEEKLY_ACTIVITY_TTL_MS;
+
+const RETURNING_STUDENTS_KEY = 'returning-students-locations';
+const RETURNING_STUDENTS_TTL_MS = WEEKLY_ACTIVITY_TTL_MS;
+// Comfortably longer than the largest supported inactivity threshold (60 days) plus a reporting
+// period, so a student's real "previous visit" is very unlikely to fall outside this fetch and
+// get silently excluded (see returningStudents.ts's meta.limitation for what happens when it does).
+const RETURNING_STUDENTS_LOOKBACK_DAYS = 75;
+const RETURNING_STUDENTS_LOCATIONS_MAX_PAGES = 150;
+
+const CONTRIBUTOR_COALITION_MAP_KEY = 'contributor-coalition-map';
+const CONTRIBUTOR_COALITION_MAP_TTL_MS = WEEKLY_ACTIVITY_TTL_MS;
+const DEFAULT_SNAPSHOT_FILE_PATH = path.join(process.cwd(), 'data', 'coalition-score-snapshots.json');
+
 /**
  * Orchestrates live data loading, discovery, and caching against the 42 API. Every
  * route reads through this service so raw API shapes never leak past it.
  */
 export class DataService {
   private readonly cache: TtlCache<unknown>;
+  private readonly coalitionSnapshotStore: CoalitionSnapshotStore;
 
   constructor(
     config: Pick<AppConfig, 'cacheTtlSeconds'>,
     private readonly apiClient: Ft42ApiClient,
     private readonly discoveryService: DiscoveryService,
     private readonly logger: Logger,
+    snapshotFilePath: string = DEFAULT_SNAPSHOT_FILE_PATH,
   ) {
     this.cache = new TtlCache(config.cacheTtlSeconds * 1000, logger);
+    this.coalitionSnapshotStore = new CoalitionSnapshotStore(snapshotFilePath, logger);
   }
 
   async getDiscoveredConfig(): Promise<DiscoveredConfig> {
@@ -296,6 +336,227 @@ export class DataService {
       return buildCoalitionStandings(raw, topContributors, weeklyTopContributors, weeklyPointsByCoalition);
     });
     return result.value as CoalitionStanding[];
+  }
+
+  /**
+   * Live "who's on which workstation" merged with a trailing-7-day usage aggregate, grouped by
+   * cluster. See clusterOccupancy.ts's buildClusterOccupancy() for why there's no seat-capacity
+   * figure anywhere in the response - the 42 API exposes no hardware/capacity inventory, so
+   * every workstation shown here was actually observed in live or recent session data.
+   */
+  async getClusterOccupancy(): Promise<ClusterOccupancyResponse> {
+    const discovered = await this.getDiscoveredConfig();
+    const period = getLastSevenDaysRange(new Date());
+
+    const [activeResult, historyResult, coreResult, membershipResult] = await Promise.all([
+      this.loadWithStatus(CLUSTER_ACTIVE_KEY, () => this.loadActiveLocationsRaw(discovered), CLUSTER_ACTIVE_TTL_MS),
+      this.loadWithStatus(CLUSTER_HISTORY_KEY, () => this.loadClusterHistoryLocationsRaw(discovered, period), CLUSTER_HISTORY_TTL_MS),
+      this.getCoreDataset(),
+      this.loadWithStatus(COALITION_MEMBERSHIP_KEY, () => this.loadCoalitionMembershipMap(discovered), COALITION_MEMBERSHIP_TTL_MS),
+    ]);
+
+    const { data } = coreResult;
+    const studentsById = new Map(data.students.map((s) => [s.id, s]));
+    const validStudentIds = new Set(data.students.map((s) => s.id));
+    const overallStatus = this.combineStatus(
+      this.combineStatus(activeResult.status, historyResult.status),
+      this.combineStatus(coreResult.cacheStatus, membershipResult.status),
+    );
+
+    return buildClusterOccupancy({
+      activeLocations: activeResult.value,
+      historicalLocations: historyResult.value,
+      validStudentIds,
+      studentsById,
+      coalitionByUserId: membershipResult.value,
+      campusId: discovered.campusId,
+      cursusId: discovered.cursusId,
+      period,
+      now: new Date(),
+      source: overallStatus === 'stale' ? 'cache' : '42-api',
+    });
+  }
+
+  /** Best-effort: an empty result degrades getClusterOccupancy() to "nobody known online" rather than failing it. */
+  private async loadActiveLocationsRaw(discovered: DiscoveredConfig): Promise<RawLocation[]> {
+    try {
+      return await this.apiClient.paginate<RawLocation>(
+        `/v2/campus/${discovered.campusId}/locations`,
+        { 'filter[active]': true },
+        { pageSize: 100, maxPages: 20 },
+      );
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Could not fetch active campus locations for cluster occupancy');
+      return [];
+    }
+  }
+
+  /** Same endpoint/window as Weekly Campus Activity's own fetch, kept as a separate cache entry
+   * (own key/TTL) rather than shared, matching this codebase's existing per-feature fetch
+   * pattern (e.g. eval analytics has its own scale_teams fetch distinct from other routes). */
+  private async loadClusterHistoryLocationsRaw(discovered: DiscoveredConfig, period: ReportingPeriod): Promise<RawLocation[]> {
+    const rawLocations = await this.apiClient.paginate<RawLocation>(
+      `/v2/campus/${discovered.campusId}/locations`,
+      { 'range[begin_at]': `${period.start.toISOString()},${period.end.toISOString()}`, sort: 'begin_at' },
+      { pageSize: 100, maxPages: WEEKLY_ACTIVITY_LOCATIONS_MAX_PAGES },
+    );
+    return dedupeById(rawLocations);
+  }
+
+  /** user_id -> coalition {name, color}, for tagging occupied seats. Reuses the same
+   * blocs/coalitions_users fetch pattern as getCoalitions(), cached separately. */
+  private async loadCoalitionMembershipMap(discovered: DiscoveredConfig): Promise<Map<number, CoalitionRef>> {
+    const blocs = await this.apiClient.paginate<RawBloc>(
+      '/v2/blocs',
+      { 'filter[campus_id]': discovered.campusId, 'filter[cursus_id]': discovered.cursusId },
+      { pageSize: 100, maxPages: 5 },
+    );
+    const coalitionById = new Map<number, CoalitionRef>();
+    for (const bloc of blocs) {
+      for (const coalition of bloc.coalitions ?? []) {
+        coalitionById.set(coalition.id, { name: coalition.name, color: coalition.color ?? null });
+      }
+    }
+
+    const { data } = await this.getCoreDataset();
+    const coalitionUsers = await this.loadCoalitionUsersForRoster(data.students.map((s) => s.id));
+
+    const membership = new Map<number, CoalitionRef>();
+    for (const cu of coalitionUsers) {
+      const ref = coalitionById.get(cu.coalition_id);
+      if (ref) membership.set(cu.user_id, ref);
+    }
+    return membership;
+  }
+
+  /**
+   * "Welcome Back": students whose latest session in `period` follows a gap of at least
+   * `thresholdDays` since their previous one. See returningStudents.ts's buildReturningStudents()
+   * for the classification logic and why a student can never be *fabricated* into this list -
+   * only excluded when the data needed to confidently classify them isn't available.
+   */
+  async getReturningStudents(period: ReportingPeriod, thresholdDays: number, sort: ReturningSortOption): Promise<ReturningStudentsResponse> {
+    const discovered = await this.getDiscoveredConfig();
+
+    const [historyResult, coreResult, membershipResult] = await Promise.all([
+      this.loadWithStatus(RETURNING_STUDENTS_KEY, () => this.loadReturningStudentsLocationsRaw(discovered), RETURNING_STUDENTS_TTL_MS),
+      this.getCoreDataset(),
+      this.loadWithStatus(COALITION_MEMBERSHIP_KEY, () => this.loadCoalitionMembershipMap(discovered), COALITION_MEMBERSHIP_TTL_MS),
+    ]);
+
+    const { data } = coreResult;
+    const studentsById = new Map(data.students.map((s) => [s.id, s]));
+    const validStudentIds = new Set(data.students.map((s) => s.id));
+    const activeNowUserIds = new Set(data.students.filter((s) => s.activeSince !== null).map((s) => s.id));
+    const overallStatus = this.combineStatus(this.combineStatus(historyResult.status, coreResult.cacheStatus), membershipResult.status);
+
+    return buildReturningStudents({
+      locations: historyResult.value,
+      validStudentIds,
+      studentsById,
+      coalitionByUserId: membershipResult.value,
+      activeNowUserIds,
+      period,
+      thresholdDays,
+      sort,
+      campusId: discovered.campusId,
+      cursusId: discovered.cursusId,
+      now: new Date(),
+      source: overallStatus === 'stale' ? 'cache' : '42-api',
+    });
+  }
+
+  private async loadReturningStudentsLocationsRaw(discovered: DiscoveredConfig): Promise<RawLocation[]> {
+    const now = new Date();
+    const start = new Date(now.getTime() - RETURNING_STUDENTS_LOOKBACK_DAYS * DAY_MS);
+    const rawLocations = await this.apiClient.paginate<RawLocation>(
+      `/v2/campus/${discovered.campusId}/locations`,
+      { 'range[begin_at]': `${start.toISOString()},${now.toISOString()}`, sort: 'begin_at' },
+      { pageSize: 100, maxPages: RETURNING_STUDENTS_LOCATIONS_MAX_PAGES },
+    );
+    return dedupeById(rawLocations);
+  }
+
+  /**
+   * Records one point-in-time snapshot of every roster student's coalitions_users.score to
+   * disk (see CoalitionSnapshotStore) - the only source of history Weekly Top Coalition
+   * Contributors has to compute a real "points earned" delta from, since the 42 API itself
+   * exposes no historical/delta endpoint for coalition score. Intended to be called
+   * periodically by CoalitionSnapshotScheduler, not per-request.
+   */
+  async captureCoalitionScoreSnapshot(): Promise<void> {
+    const { data } = await this.getCoreDataset();
+    const validStudentIds = new Set(data.students.map((s) => s.id));
+    const coalitionUsers = await this.loadCoalitionUsersForRoster(data.students.map((s) => s.id));
+
+    const scores = new Map<number, number>();
+    for (const cu of coalitionUsers) {
+      if (validStudentIds.has(cu.user_id)) scores.set(cu.user_id, cu.score);
+    }
+
+    await this.coalitionSnapshotStore.append(scores, new Date());
+    this.logger.info({ studentCount: scores.size }, 'Captured coalition score snapshot');
+  }
+
+  /**
+   * "Weekly Top Coalition Contributors": ranks students by coalition points earned during
+   * `periodDays`, computed strictly from the difference between two real snapshots - see
+   * weeklyTopContributors.ts. Returns `available: false` rather than any ranking at all until
+   * enough snapshot history exists.
+   */
+  async getWeeklyContributorLeaderboard(periodDays: number): Promise<WeeklyTopContributorsResponse> {
+    const discovered = await this.getDiscoveredConfig();
+
+    const [snapshots, coreResult, membershipResult] = await Promise.all([
+      this.coalitionSnapshotStore.read(),
+      this.getCoreDataset(),
+      this.loadWithStatus(
+        CONTRIBUTOR_COALITION_MAP_KEY,
+        () => this.loadContributorCoalitionMap(discovered),
+        CONTRIBUTOR_COALITION_MAP_TTL_MS,
+      ),
+    ]);
+
+    const studentsById = new Map(coreResult.data.students.map((s) => [s.id, s]));
+
+    return buildWeeklyContributorLeaderboard({
+      snapshots,
+      studentsById,
+      coalitionByUserId: membershipResult.value,
+      periodDays,
+      now: new Date(),
+      campusId: discovered.campusId,
+      cursusId: discovered.cursusId,
+    });
+  }
+
+  /** user_id -> {id, name, color} for the student's coalition. Same blocs/coalitions_users
+   * fetch pattern as loadCoalitionMembershipMap(), kept separate (own cache key) because this
+   * one also needs the coalition's own id (for the coalition-comparison rollup), which
+   * CoalitionRef deliberately doesn't carry - not worth changing that shared, already-tested
+   * shape for one caller. */
+  private async loadContributorCoalitionMap(discovered: DiscoveredConfig): Promise<Map<number, ContributorCoalitionRef>> {
+    const blocs = await this.apiClient.paginate<RawBloc>(
+      '/v2/blocs',
+      { 'filter[campus_id]': discovered.campusId, 'filter[cursus_id]': discovered.cursusId },
+      { pageSize: 100, maxPages: 5 },
+    );
+    const coalitionById = new Map<number, ContributorCoalitionRef>();
+    for (const bloc of blocs) {
+      for (const coalition of bloc.coalitions ?? []) {
+        coalitionById.set(coalition.id, { id: coalition.id, name: coalition.name, color: coalition.color ?? null });
+      }
+    }
+
+    const { data } = await this.getCoreDataset();
+    const coalitionUsers = await this.loadCoalitionUsersForRoster(data.students.map((s) => s.id));
+
+    const membership = new Map<number, ContributorCoalitionRef>();
+    for (const cu of coalitionUsers) {
+      const ref = coalitionById.get(cu.coalition_id);
+      if (ref) membership.set(cu.user_id, ref);
+    }
+    return membership;
   }
 
   /**

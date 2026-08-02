@@ -1,9 +1,17 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, output, signal } from '@angular/core';
 import { Mascot3dComponent } from './mascot-3d.component';
 
-const WELCOME_MESSAGE = 'Hello, good morning! Welcome to 42. I will take you around the campus...';
-const CHAR_INTERVAL_MS = 55;
-const HOLD_AFTER_TYPING_MS = 1400;
+const WELCOME_MESSAGE = `Welcome to 42 Warsaw!
+
+Hello! I'm your tour guide, and I'll walk you through the latest insights and achievements from our campus.
+
+Before we begin, take a moment to appreciate how far you've come. You should be proud of yourself — you're one of the few people who accepted the challenge and made it this far.
+
+Now, let's see what I have prepared for you.
+
+Ready? Let's go!`;
+const CHAR_INTERVAL_MS = 32;
+const HOLD_AFTER_TYPING_MS = 1800;
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -44,17 +52,20 @@ function prefersReducedMotion(): boolean {
     }
 
     .intro__mascot {
-      width: min(420px, 80vw);
-      height: 360px;
+      width: min(360px, 70vw);
+      height: 300px;
     }
 
     .intro__text {
       margin: 0;
-      max-width: 60ch;
-      font-size: 1.6rem;
-      font-weight: 700;
+      max-width: 68ch;
+      font-size: 1.3rem;
+      font-weight: 600;
+      line-height: 1.6;
       color: var(--color-text-primary);
       min-height: 2.4em;
+      text-align: left;
+      white-space: pre-line;
     }
 
     .intro__caret {

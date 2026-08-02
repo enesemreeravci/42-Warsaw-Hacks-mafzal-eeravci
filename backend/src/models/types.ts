@@ -548,3 +548,55 @@ export interface BlackHoleStatusResponse {
   recentlyBlackHoled: BlackHoleRecentEntry[];
   excludedCount: number;
 }
+
+/** One workstation, live-occupancy + trailing-7-day usage combined. The 42 API exposes no
+ * hardware/capacity inventory (see ClusterOccupancyResponse.meta.limitation) - `cluster`/`host`
+ * come entirely from observed session records, never a hardcoded seat list. */
+export interface ClusterWorkstation {
+  host: string;
+  cluster: string;
+  occupied: boolean;
+  student: {
+    id: number;
+    login: string;
+    displayName: string;
+    imageUrl: string | null;
+    level: number;
+    coalition: { name: string; color: string | null } | null;
+  } | null;
+  /** Minutes into the current session, or null if unoccupied. */
+  sessionMinutes: number | null;
+  loginAt: string | null;
+  usageHoursLastWeek: number;
+  sessionsLastWeek: number;
+}
+
+export interface ClusterSummary {
+  cluster: string;
+  workstations: ClusterWorkstation[];
+  occupiedCount: number;
+  /** Seats observed at least once (live now, or in the last 7 days) - not true hardware capacity. */
+  knownSeatCount: number;
+  averageSessionMinutes: number;
+  longestSessionMinutes: number;
+  mostUsedHost: string | null;
+}
+
+export interface ClusterOccupancyResponse {
+  clusters: ClusterSummary[];
+  summary: {
+    studentsOnline: number;
+    knownSeatCount: number;
+    mostOccupiedCluster: string | null;
+    mostPopularComputer: string | null;
+    averageSessionMinutes: number;
+  };
+  meta: {
+    campusId: number;
+    cursusId: number;
+    source: '42-api' | 'cache';
+    lastUpdated: string;
+    /** Explains why there's no "N of M seats"/true-capacity figure anywhere in this response. */
+    limitation: string;
+  };
+}

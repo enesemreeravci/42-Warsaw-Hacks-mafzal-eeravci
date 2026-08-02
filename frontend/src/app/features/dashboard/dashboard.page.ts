@@ -9,11 +9,14 @@ import { ErrorStateComponent } from '../../shared/components/error-state/error-s
 import { LoadingSkeletonComponent } from '../../shared/components/loading-skeleton/loading-skeleton.component';
 import { AchievementSpotlightComponent } from './components/achievement-spotlight.component';
 import { CelebrationCarouselComponent } from './components/celebration-carousel.component';
+import { ClusterOccupancyMapComponent } from './components/cluster-occupancy-map.component';
 import { CoalitionLeaderboardComponent } from './components/coalition-leaderboard.component';
 import { CompletionTrendChartComponent } from './components/completion-trend-chart.component';
 import { DashboardAnalyticsComponent } from './components/dashboard-analytics.component';
+import { EvaluationHeatmapComponent } from './components/evaluation-heatmap.component';
 import { HiveNodeMapComponent } from './components/hive-node-map.component';
 import { LiveEvaluationsComponent } from './components/live-evaluations.component';
+import { ReturningStudentsComponent } from './components/returning-students.component';
 import { NarratorRobotComponent, type NarratorCue } from './components/narrator-robot.component';
 import { NarratorTargetDirective } from './narrator-target.directive';
 import { NarratorTargetRegistry } from './narrator-target-registry.service';
@@ -25,6 +28,7 @@ import { TopStudentsByLevelComponent } from './components/top-students-by-level.
 import { TranscendenceCompletedShowcaseComponent } from './components/transcendence-completed-showcase.component';
 import { UpcomingEventsComponent } from './components/upcoming-events.component';
 import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
+import { WeeklyContributorsLeaderboardComponent } from './components/weekly-contributors-leaderboard.component';
 import { WeeklyTopCoalitionsComponent } from './components/weekly-top-coalitions.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
@@ -43,6 +47,8 @@ const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
   { id: 'projects', color: '#be2ad1', text: 'The most-completed projects across the whole cursus.' },
   { id: 'level', color: '#52bdff', text: 'Top students ranked by level.' },
   { id: 'completed', color: '#38e19a', text: 'Top students ranked by validated projects.' },
+  { id: 'weekly-campus-time', color: '#4cc9f0', text: 'These students spent the most time working from campus this week.' },
+  { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
   { id: 'events', color: '#ffb020', text: "What's coming up next on campus." },
 ];
 
@@ -63,6 +69,10 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'night-owls', color: '#be2ad1', text: 'Who was on campus deepest into the night this week.' },
   { id: 'early-birds', color: '#4cc9f0', text: 'Who showed up earliest on campus this week.' },
   { id: 'weekly-top-coalitions', color: '#38e19a', text: "Which coalition is climbing fastest this week." },
+  { id: 'cluster-occupancy', color: '#4cc9f0', text: "Live seat occupancy across every cluster on campus." },
+  { id: 'evaluation-heatmap', color: '#16f0a6', text: 'When evaluations actually happen, by day and hour.' },
+  { id: 'returning-students', color: '#ffb020', text: 'Welcoming back students who returned after time away.' },
+  { id: 'weekly-contributors', color: '#38e19a', text: 'Who earned the most coalition points this week.' },
   { id: 'transcendence', color: '#be2ad1', text: 'Celebrating every student who reached Transcendence.' },
   { id: 'showcase', color: '#34e2c4', text: "Saving the best for last - today's top achievements." },
 ];
@@ -81,10 +91,13 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     TopStudentsByLevelComponent,
     TopStudentsByCompletedComponent,
     HiveNodeMapComponent,
+    ClusterOccupancyMapComponent,
+    EvaluationHeatmapComponent,
     AchievementSpotlightComponent,
     XpRaceBlackholeComponent,
     CoalitionLeaderboardComponent,
     LiveEvaluationsComponent,
+    ReturningStudentsComponent,
     RobotAchievementShowcaseComponent,
     RobotIntroComponent,
     TranscendenceCompletedShowcaseComponent,
@@ -92,6 +105,7 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     NarratorTargetDirective,
     WeeklyCampusActivityBoardComponent,
     WeeklyTopCoalitionsComponent,
+    WeeklyContributorsLeaderboardComponent,
     UpcomingEventsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -154,7 +168,10 @@ export class DashboardPage {
   constructor() {
     timer(0, 1000)
       .pipe(
-        filter(() => this.tvMode.enabled() && !this.visibility.hidden()),
+        // introComplete() gate: without it, the rotation timer keeps ticking - and can advance
+        // activeSection - in the background while the welcome intro is still playing, so the
+        // section revealed the instant the intro finishes isn't reliably the first one (Hive).
+        filter(() => this.tvMode.enabled() && this.tvMode.introComplete() && !this.visibility.hidden()),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.tickRotation());

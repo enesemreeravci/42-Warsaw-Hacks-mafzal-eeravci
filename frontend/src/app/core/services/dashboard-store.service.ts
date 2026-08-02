@@ -4,6 +4,7 @@ import { Subject, catchError, filter, of, switchMap, timer } from 'rxjs';
 import type {
   AppConfigResponse,
   CampusEvent,
+  ClusterOccupancyResponse,
   CoalitionStanding,
   CompletionTrendPoint,
   DashboardSummary,
@@ -40,6 +41,7 @@ export interface DashboardData {
   evaluations: EvaluationEntry[];
   weeklyCampusActivity: WeeklyCampusActivityResponse | null;
   upcomingEvents: CampusEvent[];
+  clusterOccupancy: ClusterOccupancyResponse | null;
 }
 
 /**
@@ -65,6 +67,7 @@ export class DashboardStore {
     evaluations: [],
     weeklyCampusActivity: null,
     upcomingEvents: [],
+    clusterOccupancy: null,
   });
 
   private readonly loadingSignal = signal(true);
@@ -339,6 +342,10 @@ export class DashboardStore {
     this.loadField(loadId, 'upcomingEvents', this.api.getUpcomingEvents(5), (data, envelope) => ({
       ...data,
       upcomingEvents: envelope.data,
+    }), onSettled);
+    this.loadField(loadId, 'clusterOccupancy', this.api.getClusterOccupancy(), (data, envelope) => ({
+      ...data,
+      clusterOccupancy: envelope.data,
     }), onSettled);
   }
 }

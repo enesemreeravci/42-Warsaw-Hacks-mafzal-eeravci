@@ -59,14 +59,16 @@
   display: grid;
   grid-template-columns: 1.3fr 1fr;
   gap: var(--space-5);
-  align-items: start;
+  // stretch (not start): the two panels in a row should always match height, even when one
+  // side's content (e.g. a grid of project cards) naturally runs taller than the other's.
+  align-items: stretch;
 }
 
 .section--weekly-activity {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-5);
-  align-items: start;
+  align-items: stretch;
 }
 
 .panel {
@@ -78,6 +80,16 @@
   padding: var(--space-5);
   box-shadow: var(--glass-shadow);
   transition: border-color 500ms ease, box-shadow 500ms ease;
+  display: flex;
+  flex-direction: column;
+}
+
+// Lets the panel's main content (chart/list/etc.) grow to fill whatever extra height
+// align-items: stretch hands the panel, instead of leaving dead space below shorter content.
+// Excludes the heading elements so only the "body" of the panel grows.
+.panel > :not(h3):not(.panel__header) {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Bound to the narrator robot's active cue - see dashboard.page.ts activeNarratorCue(). */

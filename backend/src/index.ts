@@ -37,6 +37,10 @@ async function main(): Promise<void> {
   void ctx.backgroundRefresh.warmup();
   ctx.backgroundRefresh.start();
 
+  // Non-blocking, same reasoning as backgroundRefresh above - never gates the HTTP listener.
+  ctx.coalitionSnapshotScheduler.warmup();
+  ctx.coalitionSnapshotScheduler.start();
+
   app.listen(config.port, () => {
     logger.info(
       { port: config.port, frontendOrigin: config.frontendOrigin },

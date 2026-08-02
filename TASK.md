@@ -1,385 +1,396 @@
-# TASK — Evaluation Analytics, Evaluation Activity Heatmap, and Black Hole Status
 
-## Mission
+Please execute a comprehensive update across both our **TV Module** and our main **Dashboard**, following the exact requirements, feature additions, layout updates, and UI/UX bug fixes outlined below.
 
-Extend the existing **42 Warsaw Learning Progress Dashboard** with two production-quality feature areas:
 
-1. **Evaluation Analytics**
-   - Evaluation Activity Heatmap
-   - Evaluation KPI cards
-   - Top Evaluators
-   - Most Evaluated Students
-   - Top Evaluation Contributors
-   - Evaluation Activity Chart
-   - Most Evaluated Projects
-   - Evaluation Timeline
-   - Search, filters, and historical comparison
+Please Take all the data from  API End Point Not Hard coded
 
-2. **Black Hole Status**
-   - Students approaching their Black Hole date
-   - Students who recently reached or passed their Black Hole date
-   - Correct cursus selection
-   - Correct Warsaw-time date calculations
-   - Correct status classification and sorting
-   - TV-safe, respectful presentation
 
-Complete the task end to end. Do not stop after planning or partial implementation.
+# Feature: Weekly Top Coalition Contributors
+
+Add a new feature called **Weekly Top Coalition Contributors** to the existing dashboard.
+
+The purpose of this feature is to accurately identify and display the students who contributed the most coalition points during a selected period. The leaderboard must be based on **real contribution data** or **historical snapshots**, not on current coalition totals or current user scores.
+
+The ranking should be trustworthy, transparent, and updated automatically.
 
 ---
 
-# 1. Mandatory Working Rules
+## Objective
 
-- Inspect the existing codebase before modifying anything.
-- Reuse the current architecture, naming conventions, visual system, services, models, routes, state management, and test setup.
-- Preserve all existing uncommitted work.
-- Make focused changes only; do not perform unrelated refactors.
-- Do not commit code.
-- Do not push code.
-- Do not change Git remotes, branches, or repository history.
-- Do not run destructive Git commands.
-- Do not expose credentials, OAuth tokens, client secrets, passwords, or complete environment-variable values.
-- Do not hardcode student data, evaluation data, Black Hole dates, statistics, or API results.
-- Do not silently replace live data with mock data.
-- Do not invent unavailable 42 API fields.
-- Do not display guessed historical comparisons.
-- Do not show fake success states when data is unavailable.
-- Do not ask for routine approval after every edit or command.
-- Ask a question only when a genuinely blocking requirement cannot be resolved from the repository, its documentation, the current API responses, or existing configuration.
-- Continue through implementation, testing, runtime validation, and correction until the requested work is complete.
-- Do not show me diffs or a long explanation of every source-code change at the end.
+This feature should answer questions such as:
+
+* Who contributed the most coalition points this week?
+* Which students helped their coalition the most?
+* Which coalition gained the most points because of its members?
+* How have contributor rankings changed compared to last week?
+
+The displayed data must always represent **points earned during the selected period**, not lifetime totals.
 
 ---
 
-# 2. Initial Inspection and Baseline Validation
+# Leaderboard
 
-Before editing:
+Display a ranked leaderboard.
 
-1. Inspect the complete repository structure.
-2. Identify:
-   - Backend entry point and framework
-   - Frontend entry point and framework
-   - Existing dashboard route and layout
-   - Existing evaluation-related endpoints, services, models, components, or TV-mode views
-   - Existing Black Hole fields, counters, sorting, and UI
-   - Existing cache and persistence strategy
-   - Whether a database already exists
-   - Current 42 API client and pagination handling
-   - Configured campus ID and cursus ID
-   - Existing timezone/date utilities
-   - Current tests, lint commands, build commands, and runtime scripts
-3. Read all relevant code before deciding where to add the new features.
-4. Run the existing supported lint, tests, and builds to establish a baseline.
-5. Record existing failures separately from failures introduced by this task.
-6. Do not overwrite or discard existing user changes.
+Each contributor card should contain:
 
----
-
-# 3. General Data Integrity Requirements
-
-All displayed data must come from verified 42 API responses or persisted historical snapshots created from verified API responses.
-
-For every field:
-
-- Confirm the real API field and its meaning.
-- Handle pagination.
-- Deduplicate records.
-- Validate timestamps.
-- Handle null, missing, and malformed values.
-- Avoid unsafe assumptions about array order.
-- Keep backend responses frontend-ready.
-- Cache expensive processed results using the project’s existing cache approach.
-- Keep refresh behavior predictable.
-- Avoid excessive 42 API calls.
-- Never expose server credentials to the frontend.
-
-When a required metric cannot be calculated reliably, show a clear unavailable state such as:
-
-```text
-Historical data is not available yet.
-```
-
-Do not manufacture percentages, trends, averages, dates, names, scores, or rankings.
-
-Use:
-
-```text
-Europe/Warsaw
-```
-
-for campus-facing time calculations and labels unless an existing project-wide timezone utility already provides the same behavior.
-
----
-
-# 4. Feature Area A — Evaluation Analytics
-
-## 4.1 Objective
-
-Create an **Evaluation Analytics** section that helps students and staff understand:
-
-- When evaluations are most active
-- Which days and hours are busiest
-- When it is easiest to find evaluators
-- Which periods are quiet
-- Who contributes most as an evaluator
-- Which students receive the most evaluations
-- Which projects are evaluated most often
-- How activity changes over time
-- What the latest completed evaluations are
-
-The design must match the existing dashboard and work on both desktop and a large 1920×1080 TV.
-
----
-
-## 4.2 Backend Evaluation Data
-
-Use completed evaluation records from the 42 API.
-
-Inspect the existing API client and verify the available fields for:
-
-- Evaluation ID
-- Completion timestamp
-- Evaluator/corrector
-- Evaluated student
-- Project
-- Score or final mark, only when reliably available
-- Coalition, only when reliably available
-- Student level, only when reliably available
-- Evaluation type, only when reliably available
-- Campus/cluster, only when reliably available
-
-Do not guess field names or meanings.
-
-Implement or extend backend processing to:
-
-- Retrieve completed evaluation records
-- Normalize evaluation records
-- Deduplicate records by a stable evaluation identifier
-- Group by evaluator
-- Group by evaluated student
-- Group by project
-- Group by day of week
-- Group by hour of day
-- Aggregate hourly, daily, weekly, and monthly series
-- Calculate summary KPIs
-- Calculate current-period versus previous-period comparisons
-- Cache processed results
-- Return frontend-ready JSON
-- Apply filters consistently
-
-If the 42 API does not expose enough historical data directly:
-
-- Persist verified snapshots or normalized evaluation records going forward.
-- Use the project’s existing database when present.
-- When no database exists, add the smallest maintainable persistence solution that fits the current architecture.
-- Do not pretend that earlier historical data exists.
-- Display the unavailable-state message until enough historical data has been collected.
-
----
-
-## 4.3 Evaluation Filters
-
-Support these filters where reliable data exists:
-
-### Date range
-
-- Today
-- Yesterday
-- Last 7 Days
-- Last Week
-- This Month
-- Custom Range
-
-### Additional filters
-
-- Student
-- Evaluator
-- Project
-- Coalition
-- Cluster, if supported by verified data
-- Evaluation type, if supported by verified data
-
-Support search by:
-
-- Student login
-- Evaluator login
-- Project name
-
-Use one consistent filter state for KPI cards, charts, heatmap, leaderboards, project rankings, timeline, and insights.
-
----
-
-## 4.4 Evaluation Summary Cards
-
-Display compact KPI cards for:
-
-- Evaluations Today
-- Evaluations This Week
-- Active Evaluators
-- Students Evaluated
-- Most Evaluated Project
-- Average Evaluations per Day
-
-Where comparison data exists, show comparison with the equivalent previous period.
+* Rank
+* Profile picture
+* Student login
+* Coalition logo and name
+* Current level
+* Coalition points earned during the selected period
+* Current leaderboard position
+* Position change from previous week
+* Last contribution date (if available)
 
 Example:
 
 ```text
-Evaluations This Week
-247
-▲ 12% compared with last week
+🏆 Weekly Coalition Contributors
+
+#1
+👤 eeravci
+🛡 Freax
+⭐ Level 9.42
+
++245 Coalition Points
+
+↑ Moved up 2 places
 ```
 
-When comparison data does not exist:
+---
+
+# Summary Cards
+
+Display KPI cards above the leaderboard.
+
+Examples:
 
 ```text
-Historical data is not available yet.
+Top Contributor
+
+eeravci
+
+245 pts
 ```
 
-Do not show a fake zero-percent change.
+```text
+Most Active Coalition
+
+Freax
+
++1,820 pts
+```
+
+```text
+Total Coalition Points Earned
+
+4,932 pts
+```
+
+```text
+Active Contributors
+
+86 Students
+```
 
 ---
 
-## 4.5 Top Evaluators
+# Filters
 
-Create a leaderboard of students who completed the most evaluations during the selected period.
+Support:
+
+* Today
+* Last 7 Days
+* Last Week
+* This Month
+* Custom Date Range
+
+Additional filters:
+
+* Coalition
+* Student
+* Level
+* Cursus
+
+---
+
+# Ranking Rules
+
+The ranking **must never** use:
+
+* Current coalition score
+* Current user score
+* Lifetime contribution
+* Total coalition points
+
+Instead, calculate:
+
+```text
+Points Earned During Selected Period
+```
+
+For example:
+
+```text
+Current Score:
+1,540
+
+Score 7 Days Ago:
+1,295
+
+Weekly Contribution:
+
+245 Points
+```
+
+Sort the leaderboard by:
+
+```text
+Highest Weekly Contribution
+```
+
+---
+
+# Historical Calculation
+
+The backend should calculate contributions using historical snapshots.
+
+Formula:
+
+```text
+Weekly Contribution
+
+=
+
+Current Points
+
+-
+
+Points Recorded Seven Days Ago
+```
+
+The same logic should work for:
+
+* Daily
+* Weekly
+* Monthly
+* Custom Date Range
+
+---
+
+# Important Data Validation
+
+The leaderboard **must always verify**:
+
+✔ Student belongs to the selected campus
+
+✔ Student belongs to the selected coalition
+
+✔ Contribution falls inside the selected period
+
+✔ Duplicate records are ignored
+
+✔ Historical snapshots exist
+
+✔ No negative contribution values unless explicitly supported by the API
+
+---
+
+# Position Changes
+
+Display ranking movement compared to the previous period.
+
+Example:
+
+```text
+↑ +3
+
+Moved up three positions
+```
+
+```text
+↓ -2
+
+Dropped two positions
+```
+
+```text
+—
+
+No Change
+```
+
+---
+
+# Profile Card
+
+Clicking a contributor should open a detailed panel.
 
 Display:
 
-- Rank
-- Profile picture
-- Login
-- Coalition, when available
-- Current level, when available
-- Number of evaluations completed
-- Number of different students evaluated
-- Number of different projects evaluated
-- Last evaluation time
-
-Use deterministic sorting:
-
-1. Evaluation count descending
-2. Most recent evaluation descending
-3. Login alphabetically
-
-Use a neutral placeholder or initials when a profile image is unavailable.
+* Profile picture
+* Login
+* Coalition
+* Current level
+* Weekly contribution
+* Monthly contribution
+* Total contribution (if available)
+* Ranking history
+* Contribution trend
+* Last activity
 
 ---
 
-## 4.6 Most Evaluated Students
+# Trend Visualization
 
-Create a second leaderboard for students who received the most evaluations.
+Display a small sparkline beside each contributor showing contribution history.
 
-Display:
+Example:
 
-- Rank
-- Profile picture
-- Login
-- Coalition, when available
-- Current level, when available
-- Evaluations received
-- Different projects evaluated
-- Last evaluation time
+```text
+Week
 
-Use deterministic sorting:
+██▇▆█▇█
+```
 
-1. Evaluations received descending
-2. Most recent evaluation descending
-3. Login alphabetically
+The graph should visualize contribution growth over recent weeks.
 
 ---
 
-## 4.7 Top Evaluation Contributors
+# Coalition Comparison
 
-Add a contributor ranking that recognizes sustained community contribution rather than only raw volume.
+Display which coalition gained the most points during the selected period.
 
-Calculate an explainable score using verified metrics such as:
+Example:
 
-- Evaluations completed
-- Different students evaluated
-- Different projects evaluated
-- Consistency across different days of the selected period
+```text
+Freax
 
-Requirements:
++1,820 pts
 
-- Keep the formula simple and documented in code.
-- Do not use hidden or arbitrary personal-quality judgments.
-- Return each score component to the frontend.
-- Clearly label this as a contribution/activity score, not as an official 42 ranking.
-- Do not calculate the score when required inputs are unavailable.
+██████████
+```
 
----
+```text
+Alliance
 
-## 4.8 Evaluation Activity Chart
++1,640 pts
 
-Add a time-series visualization with selectable granularity:
+████████
+```
 
-- Hourly
-- Daily
-- Weekly
-- Monthly
-
-The chart must:
-
-- Use the active filters
-- Use Warsaw-local labels
-- Handle empty periods
-- Avoid misleading interpolation
-- Animate transitions without harming performance
-- Remain readable on desktop and TV
-- Include an accessible text summary
+This should be based on **sum of member contributions**, not current coalition totals.
 
 ---
 
-## 4.9 Most Evaluated Projects
+# Backend Requirements
 
-Display a ranked project list.
+The backend should:
 
-Each project item should show:
-
-- Project name
-- Total evaluations
-- Unique students evaluated
-- Average mark, only if the data is reliably available
-- Trend versus the equivalent previous period, only when historical data exists
-
-Use deterministic sorting:
-
-1. Total evaluations descending
-2. Unique students descending
-3. Project name alphabetically
+* Retrieve coalition and user data from the 42 API.
+* Store periodic snapshots of coalition points (or individual contribution values if the API provides them).
+* Calculate the difference between snapshots for the selected period.
+* Aggregate points by student.
+* Sort contributors by points earned.
+* Cache processed results.
+* Return frontend-ready JSON.
 
 ---
 
-## 4.10 Evaluation Timeline
+# Data Accuracy Requirements
 
-Create a recent-activity feed showing the latest completed evaluations.
+This feature **must not estimate or guess** weekly contributions.
 
-Each item may show, when verified and publicly appropriate:
+If the API does **not** expose individual coalition contribution history, the application must rely on historical snapshots stored by the backend.
 
-- Completion time
-- Evaluator login
-- Evaluated student login
-- Project name
-- Score/final mark, only when available
+If historical snapshots are missing, display:
 
-Requirements:
+```text
+Weekly contribution data is not available yet.
 
-- Refresh automatically every few minutes using the existing refresh architecture.
-- Avoid reloading the whole page.
-- Prevent duplicate timeline entries.
-- Use respectful wording.
-- Handle missing profile images and fields.
-- Do not show private or unavailable information.
+Historical snapshots are required before contributor rankings can be calculated accurately.
+```
+
+Do **not** fabricate rankings using current totals.
 
 ---
 
-# 5. Evaluation Activity Heatmap
+# Suggested API Response
 
-## 5.1 Layout
+```json
+{
+  "period": "last-week",
+  "generatedAt": "2026-08-01T12:00:00Z",
+  "contributors": [
+    {
+      "rank": 1,
+      "login": "eeravci",
+      "image": "profile.jpg",
+      "coalition": "Freax",
+      "level": 9.42,
+      "pointsEarned": 245,
+      "previousRank": 3,
+      "rankChange": "+2",
+      "lastContribution": "2026-07-31T18:24:00Z"
+    }
+  ]
+}
+```
 
-Create a GitHub-style matrix.
+---
 
-Rows:
+# TV Optimization
+
+The leaderboard should be designed for continuous display in the Social Space.
+
+* Show the **Top 10 contributors** with large profile pictures.
+* Display coalition colors and logos for quick recognition.
+* Highlight the Top 3 with gold, silver, and bronze accents.
+* Smoothly animate changes in ranking without refreshing the entire page.
+* Auto-refresh periodically while preserving stable animations.
+
+---
+
+# Expected Result
+
+The **Weekly Top Coalition Contributors** feature should become the official community leaderboard for coalition activity, accurately recognizing students who actively contributed during the selected period. Rankings must always be based on verified historical data and should never be derived from current totals alone, ensuring fairness, transparency, and trust in the displayed results.
+
+
+# Feature: Evaluation Activity Heatmap
+
+Add a new visualization called **Evaluation Activity Heatmap** to the existing dashboard.
+
+The purpose of this feature is to help students understand **when evaluations are most likely to happen**, allowing them to choose the best time to request an evaluation or find available evaluators.
+
+This feature should visualize evaluation activity using historical data collected from the 42 API.
+
+---
+
+## Objective
+
+Create a GitHub-style heatmap that displays evaluation activity across different days and hours.
+
+The visualization should immediately answer questions such as:
+
+* What are the busiest hours for evaluations?
+* Which day of the week has the most evaluations?
+* When is the best time to find an evaluator?
+* Which periods are usually quiet?
+* How has evaluation activity changed compared to previous weeks?
+
+The heatmap should prioritize readability over complexity and be suitable for both desktop and large TV displays.
+
+---
+
+## Heatmap Layout
+
+The heatmap should be displayed as a matrix.
+
+### Rows
+
+Days of the week:
 
 ```text
 Monday
@@ -391,714 +402,1001 @@ Saturday
 Sunday
 ```
 
-Columns:
+### Columns
+
+Hours of the day:
 
 ```text
 00 01 02 ... 22 23
 ```
 
-Each cell represents:
+Each cell represents one hour of one day.
+
+Example:
 
 ```text
-Completed evaluations during that weekday and hour
+            08 09 10 11 12 13 14 15 16 17 18
+
+Monday      ░ ▒ ▓ █ █ █ ▓ ▒ ░ ░ ░
+Tuesday     ░ ░ ▒ ▓ █ █ █ ▓ ▒ ░ ░
+Wednesday   ░ ▒ ▓ █ █ █ █ █ ▓ ▒ ░
+Thursday    ░ ░ ▒ ▓ █ █ ▓ ▒ ░ ░ ░
+Friday      ░ ▒ ▓ █ █ █ █ ▓ ▒ ░ ░
+Saturday    ░ ░ ▒ ▒ ▓ ▓ ▒ ░ ░ ░ ░
+Sunday      ░ ░ ░ ▒ ▒ ▒ ░ ░ ░ ░ ░
 ```
 
-The heatmap must use the selected date range and other active filters.
+---
+
+## Color Scale
+
+Use a smooth color gradient.
+
+Example:
+
+```text
+Very Low Activity
+
+⬜
+
+↓
+
+🟩
+
+↓
+
+🟨
+
+↓
+
+🟧
+
+↓
+
+🟥
+
+Very High Activity
+```
+
+The color intensity should represent:
+
+```text
+Number of completed evaluations during that hour
+```
+
+The scale should automatically adjust based on the selected date range so that both quiet and busy weeks remain easy to interpret.
 
 ---
 
-## 5.2 Heatmap Aggregation
+## Hover Information
 
-The backend must return a complete 7×24 structure, including zero-value cells.
+When hovering over a cell, display:
 
-For every cell, return enough verified information for the UI:
+```text
+Wednesday
 
-- Day index and day label
-- Hour
-- Evaluation count
-- Average count for that weekday/hour across the selected period, when meaningful
-- Most evaluated project, when available
-- Most active evaluator, when available
+14:00 – 15:00
 
-Use Warsaw-local time when mapping timestamps into day and hour.
+Completed Evaluations
 
-Do not group timestamps in UTC and label them as Warsaw time.
+18
 
----
+Average During This Hour
 
-## 5.3 Heatmap Color Scale
+15
 
-Use a smooth, high-contrast activity scale from very low to very high.
+Most Evaluated Project
 
-Requirements:
+CPP09
 
-- Scale intensity according to the selected dataset.
-- Keep zero activity visually distinct.
-- Avoid a scale where one outlier makes all other cells indistinguishable.
-- Prefer percentile, quantile, or another robust normalization if appropriate.
-- Include a visible legend.
-- Ensure sufficient contrast for TV viewing.
-- Do not rely on color alone; include count labels, accessible text, or intensity classes where practical.
+Most Active Evaluator
+
+eeravci
+```
 
 ---
 
-## 5.4 Heatmap Tooltip
+## Filters
 
-On hover or keyboard focus, show:
+Support the following filters:
 
-- Day
-- Time range, such as `14:00–15:00`
-- Completed evaluations
-- Average during this weekday/hour, when available
-- Most evaluated project, when available
-- Most active evaluator, when available
+Date Range
 
-The heatmap must remain understandable without hover because it will be displayed on a TV.
+* Today
+* Yesterday
+* Last 7 Days
+* Last Week
+* This Month
+* Custom Range
 
----
+Project
 
-## 5.5 Heatmap Summary Cards
+* All Projects
+* Selected Project
 
-Display:
+Coalition
 
-- Peak Evaluation Hour
-- Busiest Day
-- Quietest Day
-- Average Daily Evaluations
+* All Coalitions
+* Selected Coalition
 
-All values must be calculated from the filtered dataset.
+Cluster (if relevant)
 
-Clearly distinguish:
-
-- No activity
-- No data
-- Historical data unavailable
+Evaluation Type (if available)
 
 ---
 
-## 5.6 Dynamic Insights Panel
+## Summary Cards
 
-Generate simple, deterministic insights from the currently displayed data.
+Display small KPI cards above the heatmap.
+
+Example:
+
+```text
+Peak Evaluation Hour
+
+Wednesday
+
+14:00–15:00
+
+43 Evaluations
+```
+
+```text
+Busiest Day
+
+Wednesday
+
+182 Evaluations
+```
+
+```text
+Quietest Day
+
+Sunday
+
+24 Evaluations
+```
+
+```text
+Average Daily Evaluations
+
+117
+```
+
+---
+
+## Insights Panel
+
+Generate simple insights beside the heatmap.
 
 Examples:
 
-- Busiest weekday
-- Quietest weekday
-- Peak time window
-- Quiet late-hour period
-- Change compared with the previous equivalent period
+* Wednesday afternoons consistently have the highest evaluation activity.
+* Sundays have the lowest evaluation volume.
+* Evaluation requests peak between 13:00 and 16:00.
+* The busiest evaluation window is Wednesday from 14:00 to 15:00.
+* The quietest period is after 22:00.
 
-Do not use a language model or invented prose for calculations.
-
-Only display an insight when the underlying data supports it.
+These insights should be calculated dynamically from the displayed data.
 
 ---
 
-## 5.7 Suggested Evaluation Endpoint
+## Technical Requirements
 
-Use the existing route conventions. A possible shape is:
+The backend should:
 
-```http
-GET /api/evaluations/analytics
-```
+* Retrieve completed evaluation records from the 42 API.
+* Store historical evaluation data in the database.
+* Group evaluations by:
 
-Possible query parameters:
+  * Day of the week
+  * Hour of the day
+* Count completed evaluations for each time slot.
+* Return aggregated heatmap data to the frontend.
 
-```text
-range=today|yesterday|last7Days|lastWeek|thisMonth|custom
-from=YYYY-MM-DD
-to=YYYY-MM-DD
-projectId=
-coalitionId=
-studentLogin=
-evaluatorLogin=
-clusterId=
-evaluationType=
-granularity=hourly|daily|weekly|monthly
-```
+Example response:
 
-A suitable response should include:
-
-- Generated timestamp
-- Timezone
-- Applied filters
-- Summary KPIs
-- Heatmap data
-- Activity series
-- Top evaluators
-- Most evaluated students
-- Top contributors
-- Most evaluated projects
-- Recent timeline
-- Dynamic insights
-- Historical availability metadata
-
-Adapt this shape to the project’s current API style rather than forcing an incompatible structure.
-
----
-
-# 6. Feature Area B — Black Hole Status
-
-## 6.1 Objective
-
-Rebuild the current Black Hole feature so it accurately answers:
-
-- Which students are closest to their Black Hole date?
-- How many days remain?
-- Which students recently reached or passed the date?
-- How many students are at immediate risk?
-- Is the date based on the correct cursus record?
-
-Do not estimate or infer a Black Hole date from unrelated fields.
-
----
-
-## 6.2 Correct Cursus Selection
-
-Use the configured core cursus ID.
-
-The common value is:
-
-```text
-42cursus = 21
-```
-
-Do not hardcode `21` in multiple places. Use the project’s configuration or introduce one validated configuration value.
-
-Select the correct `cursus_user` record by:
-
-1. Matching `cursus.id` with the configured cursus ID.
-2. Keeping only records with a valid `blackholed_at`.
-3. Preferring an active record when available.
-4. Otherwise selecting the most recently updated valid matching record.
-5. Using a deterministic tie-breaker.
-
-Never use:
-
-```javascript
-user.cursus_users[0]
-```
-
-Do not use:
-
-- `end_at`
-- `updated_at`
-- `created_at`
-- Last login
-- Last project date
-- Any estimated date
-- A record from another cursus
-
-When the correct record cannot be found, exclude it from the risk leaderboard and record the exclusion reason.
-
----
-
-## 6.3 Black Hole Date Calculation
-
-Use:
-
-```text
-Europe/Warsaw
-```
-
-Calculate:
-
-```text
-millisecondsRemaining = blackholedAt - currentWarsawTime
-daysRemaining = ceil(millisecondsRemaining / oneDay)
-```
-
-Do not use an absolute value.
-
-A past date must remain negative.
-
-Return the exact Black Hole timestamp together with the calculated value.
-
-Use one shared, tested date helper so the backend, frontend labels, sorting, and tests follow the same rule.
-
-Account for:
-
-- Warsaw-local display
-- Midnight boundaries
-- Daylight-saving-time changes
-- Invalid dates
-- Missing dates
-
-Never display:
-
-```text
-Invalid Date
-NaN days
-undefined
+```json
+{
+  "Monday": {
+    "08": 3,
+    "09": 7,
+    "10": 15,
+    "11": 21,
+    "12": 24
+  },
+  "Tuesday": {
+    "08": 2,
+    "09": 6,
+    "10": 12
+  }
+}
 ```
 
 ---
 
-## 6.4 Black Hole Status Categories
+## Frontend Responsibilities
 
-Assign exactly one status:
+The frontend should:
 
-- `critical`: 0–3 days remaining
-- `urgent`: 4–7 days remaining
-- `warning`: 8–14 days remaining
-- `upcoming`: 15–30 days remaining
-- `safe`: more than 30 days remaining
-- `recentlyBlackHoled`: date passed within the selected recent window, default 30 days
-- `historical`: date passed more than the selected recent window
-
-Safe and historical students should not appear in the main TV lists by default.
+* Render the heatmap dynamically.
+* Apply the color scale based on activity.
+* Display detailed tooltips on hover.
+* Animate transitions when filters change.
+* Automatically refresh when new historical data is available.
+* Match the existing dashboard's visual style.
 
 ---
 
-## 6.5 Closest to Black Hole
+## TV Optimization
 
-Create a panel titled:
+Since the dashboard is displayed on a large TV in the Social Space:
+
+* Use large labels and high-contrast colors.
+* Ensure each cell is visible from several meters away.
+* Keep hover interactions optional; the heatmap should remain informative without interaction.
+* Include a visible legend explaining the color scale.
+
+---
+
+## Expected Outcome
+
+At a glance, students should be able to identify:
+
+* The busiest days for evaluations.
+* The busiest hours to find evaluators.
+* The quietest periods.
+* Weekly evaluation patterns.
+
+This feature transforms raw evaluation records into actionable scheduling information, helping students choose the best time to request peer evaluations while giving staff insight into campus evaluation activity.
+
+
+nteractive Cluster Occupancy Map
+
+Design a clean, modern, real-time visualization of all computer clusters inside the 42 Warsaw campus.
+
+The purpose of this view is to let students instantly understand:
+
+Which clusters are currently occupied
+Which computers are available
+Which seats are the most popular
+Which cluster has the highest occupancy
+Which computers have been used the longest
+
+The design should prioritize readability from a large TV screen while remaining responsive for desktop browsers.
+
+Overall Layout
+
+Represent every cluster as an individual card.
+
+Example:
+
+┌──────────── Cluster C1 ────────────┐
+■ ■ □ □ ■ ■ □ □
+■ ■ ■ □ □ □ ■ □
+
+Occupancy: 68%
+Online: 14 / 20
+Average Session: 2h 41m
+────────────────────────────────────
+
+Display every cluster on the dashboard in a grid.
+
+Example:
+
+Cluster C1      Cluster C2      Cluster C3
+
+Cluster C4      Cluster C5      Cluster C6
+
+The layout should automatically adapt to the number of clusters returned by the API.
+
+Computer Representation
+
+Each workstation should be represented by a small square.
+
+Example:
+
+■ ■ ■ □ □ ■ ■
+■ □ □ ■ ■ □ □
+
+Each square corresponds to one workstation.
+
+Do not display computer names unless the user hovers over a workstation.
+
+Seat Colors
+
+Green
+
+Currently occupied
+
+Gray
+
+Available
+
+Yellow
+
+Occupied for a long time
+
+Blue
+
+Recently occupied
+
+Red
+
+Offline or unavailable
+
+The color palette should remain subtle and readable on a dark background.
+
+Hover Information
+
+When hovering over an occupied workstation display:
+
+Computer name
+
+Student login
+
+Current project
+
+Coalition
+
+Current level
+
+Session duration
+
+Login time
+
+Example:
+
+Computer
+c3r12s4
+
+Student
+eeravci
+
+Project
+CPP09
+
+Session
+3h 17m
+
+Coalition
+Freax
+Cluster Summary
+
+Each cluster card should also display:
+
+Cluster name
+
+Current occupancy percentage
+
+Occupied seats
+
+Available seats
+
+Longest session
+
+Most used computer
+
+Average session duration
+
+Example:
+
+Cluster C3
+
+18 / 24 occupied
+
+Occupancy
+75%
+
+Average Session
+2h 43m
+
+Longest Session
+8h 19m
+
+Most Used Computer
+c3r12s4
+Historical Heatmap Mode
+
+Allow switching between:
+
+Live View
+
+Historical View
+
+Historical view should visualize seat popularity.
+
+Instead of showing who is online, show how heavily each workstation has been used during a selected period.
+
+Example:
+
+Last Week
+
+The more frequently a workstation was occupied, the brighter the square becomes.
+
+Intensity represents:
+
+Total occupied duration
+
+or
+
+Number of sessions
+
+depending on the selected metric.
+
+Filters
+
+Provide filters above the visualization.
+
+Date Range
+
+Today
+
+Yesterday
+
+Last 7 Days
+
+Last Week
+
+This Month
+
+Custom Range
+
+Metric
+
+Current Occupancy
+
+Occupied Hours
+
+Session Count
+
+Unique Users
+
+Average Session
+
+Sort Clusters By
+
+Current Occupancy
+
+Total Usage
+
+Average Session
+
+Available Seats
+
+Alphabetically
+
+Global Statistics
+
+Display summary cards above the cluster map.
+
+Example:
+
+Students Online
+184
+
+Available Seats
+43
+
+Campus Occupancy
+81%
+
+Most Occupied Cluster
+C3
+
+Most Popular Computer
+c3r12s4
+
+Average Session
+2h 58m
+Animations
+
+Keep animations minimal and smooth.
+
+Occupied seats fade in.
+
+Available seats fade out.
+
+Occupancy percentages animate.
+
+Heatmap colors transition smoothly.
+
+Avoid unnecessary effects.
+
+This dashboard should feel professional rather than playful.
+
+TV Optimization
+
+The visualization will be displayed on a large TV in the Social Space.
+
+Requirements:
+
+Large readable text
+
+High contrast
+
+Minimal interaction required
+
+Cards should remain visible from several meters away
+
+Avoid tiny labels
+
+Avoid excessive scrolling
+
+Keep important information visible at all times
+
+Technical Notes
+
+Each workstation is generated dynamically from API data.
+
+The frontend should never hardcode seat locations.
+
+Each square is generated from processed backend data such as:
+
+{
+  "host": "c3r12s4",
+  "cluster": "C3",
+  "occupied": true,
+  "student": "eeravci",
+  "project": "CPP09",
+  "sessionMinutes": 197,
+  "level": 9.42,
+  "coalition": "Freax",
+  "usageHoursLastWeek": 63.4
+}
+
+The backend is responsible for:
+
+Grouping workstations by cluster
+Calculating occupancy
+Computing session duration
+Aggregating historical usage
+Returning dashboard-ready JSON
+
+The frontend is responsible only for rendering the visualization.
+
+
+## Feature: Night Owls & Early Birds
+
+Add a new community feature called **Night Owls & Early Birds** to the existing dashboard. This feature should recognize students based on the time of day they are most active on campus and provide insights into campus usage patterns during early mornings and late nights.
+
+The feature should be visually engaging, data-driven, and optimized for display on a large TV in the Social Space.
+
+---
+
+### 🌙 Night Owls
+
+Identify students who spend the most time on campus during late-night hours.
+
+**Night period:**
 
 ```text
-Closest to Black Hole
+22:00 → 06:00
 ```
 
-Include only:
-
-```text
-daysRemaining >= 0
-```
-
-Default window:
-
-```text
-Next 30 days
-```
-
-Sort by:
-
-1. `daysRemaining` ascending
-2. Black Hole timestamp ascending
-3. Login alphabetically
+Only the portion of each login session that overlaps with this time window should count.
 
 Display:
 
-- Urgency rank
-- Profile photo or neutral fallback
-- Login
-- Coalition, when available
-- Current cursus level
-- Exact Black Hole date
-- Days remaining
-- Status badge
-- Last campus activity, only when useful and verified
-- Current online status, only when verified
+* Top Night Owls leaderboard
+* Student profile picture
+* Login
+* Coalition
+* Current level
+* Total night hours
+* Number of night sessions
+* Longest night session
+* Last night activity
 
-Default TV display:
+Summary Cards:
 
-- Top 5 students
-- Allow 5–10 in the normal desktop view
+* Students currently active at night
+* Total night activity this week
+* Average night session duration
+* Peak night hour
+* Longest overnight session
+
+Additional Insights:
+
+* Most active night of the week
+* Night activity trend
+* Percentage of total campus activity occurring at night
 
 ---
 
-## 6.6 Recently Black Holed
+### ☀️ Early Birds
 
-Create a separate panel titled:
+Identify students who consistently arrive and work early in the morning.
 
-```text
-Recently Black Holed
-```
-
-Include only students whose Black Hole date passed within the selected recent window.
-
-Default:
+**Morning period:**
 
 ```text
-Previous 30 days
+06:00 → 10:00
 ```
 
-Calculate:
-
-```text
-daysSinceBlackHole = floor((now - blackholedAt) / oneDay)
-```
-
-Sort by:
-
-1. `daysSinceBlackHole` ascending
-2. Black Hole timestamp descending
-3. Login alphabetically
+Only time spent within this window should contribute to the statistics.
 
 Display:
 
-- Profile photo or fallback
-- Login
-- Coalition, when available
-- Latest valid cursus level
-- Exact Black Hole date
-- Human-readable relative label such as `3 days ago`
-- Current student status, only when reliably available
+* Top Early Birds leaderboard
+* Student profile picture
+* Login
+* Coalition
+* Current level
+* Total morning hours
+* Number of morning sessions
+* Earliest login
+* Average arrival time
 
-Do not mix upcoming and already-passed students into one list.
+Summary Cards:
+
+* Students active this morning
+* Average arrival time
+* Earliest login today
+* Peak morning hour
+* Total morning activity
+
+Additional Insights:
+
+* Most active morning of the week
+* Morning activity trend
+* Percentage of students arriving before 08:00
 
 ---
 
-## 6.7 Black Hole Summary Cards
+### Comparison Section
 
-Display compact KPIs:
+Display both communities side-by-side.
 
-- Critical students
-- Urgent students
-- At risk within 14 days
-- Upcoming within 30 days
-- Recently Black Holed
-- Closest Black Hole date
+Example metrics:
 
-For TV mode, prioritize four high-value metrics and keep the remaining metrics available in the normal view.
+* Total Night Owls this week
+* Total Early Birds this week
+* Average night login time
+* Average morning arrival time
+* Night vs Morning campus activity percentage
 
 ---
 
-## 6.8 Black Hole Filters
+### Filters
 
 Support:
 
-### Upcoming window
-
-- Next 7 days
-- Next 14 days
-- Next 30 days
-- Next 60 days
-- Custom range
-
-### Recent window
-
-- Previous 7 days
-- Previous 14 days
-- Previous 30 days
-- Previous 60 days
-
-### Additional filters
-
-- Coalition
-- Cursus
-- Student login
-- Level range
-- Status
-- Currently online
-- Active students only
-
-Default to the configured core cursus rather than combining all cursus records.
+* Today
+* Last 7 Days
+* Last Week
+* This Month
+* Custom Date Range
 
 ---
 
-## 6.9 Black Hole Inclusion and Exclusion Rules
+### Backend Requirements
 
-Include only records where:
+The backend should:
 
-- Student belongs to the selected campus.
-- A valid selected-cursus record exists.
-- `blackholed_at` exists.
-- `blackholed_at` parses successfully.
-- The record is not a duplicate.
-- Staff are excluded unless explicitly enabled.
-- Alumni are excluded from the default operational view unless the current project requirements say otherwise.
-- Anonymized users are handled according to approved display rules.
-
-For exclusions, retain diagnostics such as:
-
-- Missing Black Hole date
-- Invalid date
-- Wrong cursus
-- Duplicate user
-- Staff exclusion
-- Alumni exclusion
-- Missing active/valid cursus record
-
-Do not expose sensitive diagnostics publicly on the TV.
+* Analyze historical location sessions.
+* Calculate only the overlapping duration within each defined time window.
+* Aggregate total hours per student.
+* Rank students based on total activity during the selected period.
+* Return dashboard-ready JSON.
 
 ---
 
-## 6.10 Suggested Black Hole Endpoint
+### TV Optimization
 
-Use the current backend routing style. A possible route is:
+The feature should be designed for continuous display on a large TV.
+
+* Show Top 5 Night Owls and Top 5 Early Birds side-by-side.
+* Use large typography and clear icons.
+* Rotate additional students automatically if necessary.
+* Keep animations subtle and lightweight.
+* Update automatically as new data becomes available.
+
+
+
+
+# Feature Prompt: Returning Students
+
+Add a new feature called **Returning Students** to the existing 42 Warsaw campus dashboard.
+
+The purpose of this feature is to highlight students who have returned to campus after a meaningful period of inactivity. It should create a positive sense of community and help students and staff notice returning members without exposing unnecessary personal information.
+
+The feature must match the current dashboard design and remain easy to understand on a large TV screen.
+
+## Main Definition
+
+A **returning student** is a student who:
+
+1. Has a new campus login session during the selected period.
+2. Had no campus login sessions for a defined inactivity period before that return.
+
+Default inactivity threshold:
+
+```text
+14 days
+```
+
+Allow configurable thresholds:
+
+```text
+7 days
+14 days
+30 days
+60 days
+```
+
+Example:
+
+```text
+Student last visited campus: 3 June
+Student returned: 22 June
+Inactive period: 19 days
+
+Result: Returning student
+```
+
+Do not classify a student as returning if they were active during the inactivity window.
+
+---
+
+## Display Format
+
+Create a compact section titled:
+
+```text
+Welcome Back
+```
+
+or:
+
+```text
+Returning Students
+```
+
+Display each student as a small card or row containing:
+
+* Profile image
+* Student login
+* Coalition
+* Current level
+* Return date and time
+* Previous campus visit
+* Number of inactive days
+* Current online status
+* Current workstation, when appropriate
+
+Example:
+
+```text
+Welcome Back
+
+eeravci
+Returned today at 10:42
+Last seen 21 days ago
+Level 8.42
+Freax
+Currently online
+```
+
+For TV mode, show only the most important information:
+
+```text
+eeravci is back after 21 days
+```
+
+---
+
+## Summary Cards
+
+Add small summary metrics above the feature:
+
+* Students returned today
+* Students returned this week
+* Average inactive period
+* Longest absence before returning
+
+Example:
+
+```text
+Returned This Week
+12 students
+```
+
+```text
+Longest Absence
+48 days
+```
+
+---
+
+## Filters
+
+Support:
+
+* Today
+* Last 7 days
+* This week
+* This month
+* Custom date range
+
+Inactivity threshold:
+
+* 7+ days
+* 14+ days
+* 30+ days
+* 60+ days
+
+Optional filters:
+
+* Coalition
+* Cursus
+* Student login
+
+---
+
+## Sorting
+
+Allow sorting by:
+
+* Most recent return
+* Longest inactivity period
+* Highest level
+* Alphabetical login
+
+The default sorting should be:
+
+```text
+Most recent return first
+```
+
+---
+
+## TV Display Behaviour
+
+The feature should work well without user interaction.
+
+Use a rotating display if many students returned:
+
+```text
+Welcome Back
+
+eeravci
+Back after 21 days
+
+Next student appears after 8–10 seconds
+```
+
+Keep animations simple:
+
+* Fade between students
+* No heavy transitions
+* No large popups
+* No sound
+* No intrusive notifications
+
+Show a maximum of 3–5 returning students at once.
+
+---
+
+## Backend Logic
+
+Use historical campus location sessions.
+
+For each student:
+
+1. Sort location sessions by `begin_at`.
+2. Detect the latest session inside the selected reporting period.
+3. Find the session immediately before it.
+4. Calculate the gap between the previous session and the return session.
+5. Classify the student as returning when the gap meets the configured threshold.
+
+Basic formula:
+
+```text
+inactive duration =
+return_session.begin_at - previous_session.end_at
+```
+
+If the previous session has no valid `end_at`, use the next reliable timestamp or exclude the record from the calculation.
+
+Example logic:
+
+```javascript
+if (inactiveDays >= selectedThreshold) {
+    student.isReturning = true;
+}
+```
+
+---
+
+## Important Data Rules
+
+Avoid incorrect results by handling:
+
+* Duplicate location records
+* Overlapping sessions
+* Active sessions with `end_at = null`
+* Missing timestamps
+* Users with multiple campuses
+* Staff accounts
+* Alumni
+* Anonymous or anonymized users
+
+Only include students belonging to the selected campus and cursus.
+
+Do not display:
+
+* Email addresses
+* Full names unless already allowed by the project requirements
+* Private account information
+* Exact historical movement patterns
+
+Use the login and public profile image only.
+
+---
+
+## Suggested API Response
+
+The backend should return frontend-ready data:
+
+```json
+{
+  "period": "this-week",
+  "inactivityThresholdDays": 14,
+  "totalReturningStudents": 12,
+  "students": [
+    {
+      "userId": 12345,
+      "login": "eeravci",
+      "image": "https://example.com/profile.jpg",
+      "level": 8.42,
+      "coalition": "Freax",
+      "returnedAt": "2026-08-01T10:42:00Z",
+      "previousVisitAt": "2026-07-11T18:25:00Z",
+      "inactiveDays": 20,
+      "currentlyOnline": true,
+      "host": "c3r12s4"
+    }
+  ]
+}
+```
+
+---
+
+## Suggested Backend Endpoint
 
 ```http
-GET /api/blackhole/status
+GET /api/students/returning
 ```
 
-Possible query:
+Query parameters:
 
 ```http
-GET /api/blackhole/status?cursusId=21&upcomingDays=30&recentDays=30
+GET /api/students/returning?period=this-week&threshold=14
 ```
 
-A suitable response should include:
+Optional:
 
-- Generated timestamp
-- Timezone
-- Cursus ID
-- Applied filters
-- Summary
-- Upcoming students
-- Recently Black Holed students
-- Excluded-record diagnostics
-
-Adapt the exact contract to the project’s established conventions.
+```http
+GET /api/students/returning?from=2026-07-01&to=2026-08-01&threshold=30
+```
 
 ---
 
-# 7. Privacy and Community Safety
+## Empty State
 
-Black Hole information may be sensitive.
-
-Requirements:
-
-- Use respectful labels.
-- Prefer:
-  - `Approaching Black Hole`
-  - `Needs Attention`
-  - `Recently Reached Black Hole`
-- Avoid:
-  - `Failed students`
-  - `Worst students`
-  - `Eliminated students`
-- Display only information appropriate for a public campus TV.
-- Preserve any existing anonymization or privacy configuration.
-- If the repository has no clear policy for showing identities, keep the implementation technically ready for anonymized TV mode.
-- Do not introduce humiliating animations, rankings, or language.
-
----
-
-# 8. Frontend and Visualization Requirements
-
-Integrate the new features into the current dashboard without breaking existing sections.
-
-Requirements:
-
-- Match the existing dashboard’s typography, spacing, cards, borders, colors, motion, and component patterns.
-- Reuse existing shared components where suitable.
-- Keep the normal dashboard understandable and not overcrowded.
-- Use responsive layout for desktop and 1920×1080 TV.
-- Use large labels and high contrast in TV mode.
-- Avoid dense tables in TV mode.
-- Do not depend on hover for essential information.
-- Use profile-image fallbacks.
-- Add loading, empty, error, and unavailable states.
-- Ensure keyboard focus and accessible labels for interactive filters and heatmap cells.
-- Prevent layout shift during refresh.
-- Use restrained animation.
-- Do not create an animation or observer loop that can freeze the browser.
-- Clean up timers, subscriptions, observers, and event listeners when components are destroyed.
-- Refresh evaluation activity every few minutes using the existing refresh system.
-- Refresh Black Hole data approximately every 30–60 minutes; second-by-second refresh is unnecessary.
-- Keep manual refresh functional.
-- Ensure filter changes update all related visualizations consistently.
-
-Choose the most suitable integration after inspecting the current application:
-
-- Existing dashboard section
-- New dashboard tab
-- New route
-- TV-mode rotation section
-
-Do not add duplicate navigation or a parallel design system.
-
----
-
-# 9. Error and Empty-State Requirements
-
-Use clear states:
+When no students match the selected period:
 
 ```text
-No evaluation activity was found for the selected period.
+No returning students during this period.
 ```
 
-```text
-Historical data is not available yet.
-```
-
-```text
-Black Hole date unavailable.
-```
-
-```text
-No students are approaching their Black Hole date in this period.
-```
-
-```text
-No students recently reached their Black Hole date.
-```
-
-Requirements:
-
-- Never show stale data as newly refreshed.
-- Preserve the last successful data only when the current project already follows that pattern and clearly labels it.
-- Show retry controls where appropriate.
-- Log backend errors without leaking secrets.
-- Return suitable HTTP status codes.
-- Validate query parameters.
-- Reject invalid custom date ranges.
-- Avoid unhandled promise rejections and frontend runtime exceptions.
+Do not show an empty card or broken layout.
 
 ---
 
-# 10. Automated Test Requirements
+## Expected Outcome
 
-Add or update tests using the existing frameworks.
+This feature should help the campus community notice and welcome students who return after being away.
 
-## 10.1 Evaluation tests
-
-Cover:
-
-- Evaluation normalization
-- Deduplication
-- Evaluator grouping
-- Evaluated-student grouping
-- Project grouping
-- 7×24 heatmap completion
-- Warsaw-local weekday/hour mapping
-- Zero-activity cells
-- Dynamic scale boundaries
-- Current-period and previous-period comparison
-- Historical data unavailable
-- Filter combinations
-- Empty data
-- Missing optional fields
-- Stable ranking tie-breakers
-- Contributor score components
-- Timeline deduplication
-- Pagination behavior where practical
-
-## 10.2 Black Hole tests
-
-Cover:
-
-- Date today
-- One day remaining
-- Three days remaining
-- Four days remaining
-- Seven days remaining
-- Eight days remaining
-- Fourteen days remaining
-- Fifteen days remaining
-- Thirty days remaining
-- More than thirty days
-- Date passed yesterday
-- Date passed exactly 30 days ago
-- Historical date
-- Session near midnight
-- Warsaw daylight-saving-time transition
-- Missing `blackholed_at`
-- Invalid `blackholed_at`
-- Multiple cursus records
-- Active matching cursus selection
-- Most-recent valid fallback selection
-- Wrong cursus exclusion
-- Duplicate users
-- Upcoming sorting
-- Recent sorting
-- Stable tie-breakers
-- Staff/alumni exclusion where implemented
-
-Do not weaken or delete existing tests merely to obtain a passing result.
-
----
-
-# 11. Runtime Validation
-
-After implementation:
-
-1. Run backend lint.
-2. Run backend tests.
-3. Run backend production build.
-4. Run frontend lint.
-5. Run frontend tests.
-6. Run frontend production build.
-7. Start the backend if it is not already running.
-8. Start the frontend.
-9. Open the application in a browser-testing environment.
-10. Verify the existing dashboard still loads.
-11. Verify Evaluation Analytics loads with live data.
-12. Verify the heatmap displays all 7 days and 24 hours.
-13. Verify heatmap cells and legend remain readable at 1920×1080.
-14. Verify filters update all evaluation visualizations.
-15. Verify historical-unavailable behavior using a period without stored history.
-16. Verify the evaluation timeline refreshes without duplicates.
-17. Verify Black Hole upcoming and recent lists remain separate.
-18. Verify upcoming ordering is correct.
-19. Verify recent ordering is correct.
-20. Verify exact dates and relative-day labels.
-21. Verify profile-image fallbacks.
-22. Verify loading, empty, error, and unavailable states.
-23. Verify manual refresh.
-24. Verify automatic refresh does not freeze the browser.
-25. Verify navigation away from and back to the dashboard.
-26. Verify TV mode, when present.
-27. Verify browser responsiveness after animations and refresh cycles.
-28. Check browser console for uncaught exceptions.
-29. Check network requests for 4xx, 5xx, CORS, or asset failures.
-30. Fix confirmed issues and rerun the relevant validation.
-
-Do not declare completion merely because compilation succeeds. Confirm that the visualizations actually render and remain responsive.
-
----
-
-# 12. Completion Criteria
-
-The task is complete only when:
-
-- Evaluation Analytics uses verified live or persisted data.
-- The heatmap correctly represents weekday/hour activity in Warsaw time.
-- KPI cards, leaderboards, chart, project ranking, timeline, and insights work.
-- Historical comparisons never use invented data.
-- Black Hole data comes from the correct configured cursus record.
-- Black Hole date calculations are consistent and tested.
-- Upcoming and recent lists are separate and correctly sorted.
-- TV and desktop layouts are readable.
-- Existing dashboard functionality still works.
-- Lint, tests, and builds pass, except for clearly identified pre-existing non-blocking warnings.
-- No blocking console or network errors remain.
-- No browser freeze or infinite observer/timer loop exists.
-- No commits or pushes were made.
-
----
-
-# 13. Final Response Format
-
-When everything is finished, respond only with:
-
-```text
-TASK COMPLETED
-
-Evaluation Analytics:
-- Status:
-- Heatmap:
-- KPI cards:
-- Leaderboards:
-- Activity chart:
-- Project ranking:
-- Timeline:
-- Filters:
-- Historical comparison:
-
-Black Hole Status:
-- Status:
-- Cursus selection:
-- Date calculations:
-- Upcoming list:
-- Recently Black Holed list:
-- Summary cards:
-- Filters:
-
-Validation:
-- Backend lint/tests/build:
-- Frontend lint/tests/build:
-- Browser runtime:
-- TV layout:
-- Console/network:
-- Existing dashboard regression check:
-
-Remaining confirmed issues:
-- None
-```
-
-When an issue remains, replace `None` with only the confirmed issue and its impact.
-
-Do not include a Git diff.
-Do not include a commit.
-Do not push any code.
+It should feel positive and community-focused while still being based on accurate historical session data and respecting student privacy.

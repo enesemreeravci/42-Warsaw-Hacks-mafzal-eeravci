@@ -18,6 +18,13 @@ interface ConfettiPiece {
  * interrupt whichever TV mode is currently on screen. Watches the live achievement feed
  * for entries flagged `isTakeover` (final mark >= 100) that haven't been shown yet, queues
  * them, and auto-dismisses after a few seconds.
+ *
+ * This component isn't created until `tvMode.introComplete()` (see app.html), so it always
+ * mounts right as the robot's welcome message finishes. Without seeding `seenIds` at
+ * construction, every achievement already sitting in the feed at that instant would look
+ * "fresh" and fire immediately - a wall of takeovers right on the heels of the welcome message.
+ * Seeding means only achievements that arrive *after* this component is already mounted ever
+ * trigger the celebration.
  */
 @Component({
   selector: 'app-achievement-takeover-overlay',
@@ -159,10 +166,24 @@ export class AchievementTakeoverOverlayComponent {
   private readonly seenIds = new Set<number>();
   private queue: AchievementEntry[] = [];
   private dismissTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** Signal inputs aren't readable in the constructor, so the "seed seenIds, don't celebrate
+   * anything already present" step (see the class doc comment above) happens on the effect's
+   * own first run instead - the earliest point `achievements()` is guaranteed to have a value. */
+  private isFirstEffectRun = true;
 
   constructor() {
     effect(() => {
-      const fresh = this.achievements().filter((a) => a.isTakeover && !this.seenIds.has(a.projectUserId));
+      const list = this.achievements();
+
+      if (this.isFirstEffectRun) {
+        this.isFirstEffectRun = false;
+        for (const a of list) {
+          if (a.isTakeover) this.seenIds.add(a.projectUserId);
+        }
+        return;
+      }
+
+      const fresh = list.filter((a) => a.isTakeover && !this.seenIds.has(a.projectUserId));
       if (fresh.length === 0) return;
 
       fresh.forEach((a) => this.seenIds.add(a.projectUserId));

@@ -22,9 +22,16 @@ import type { CompletionTrendPoint } from '../../../core/models/api.models';
     </div>
   `,
   styles: `
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
     .trend-chart {
       position: relative;
-      height: 260px;
+      flex: 1;
+      min-height: 260px;
     }
   `,
 })

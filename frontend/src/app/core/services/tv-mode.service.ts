@@ -3,10 +3,11 @@ import { Injectable, computed, signal } from '@angular/core';
 const DEFAULT_ROTATION_SECONDS = 15;
 /** The Hive, the Level-Up Spotlight, Weekly Experience, the Coalition Leaderboard, Live
  * Evaluations, the two Weekly Campus Activity rankings (Most Campus Time, Most Recent Session
- * Started), Night Owls, Early Birds, Weekly Top Coalitions, the Transcendence Completed
- * showcase, and - last, closing out every loop - the Robot Achievement Showcase. Index-matched
- * to SECTION_TITLES below. */
-const DASHBOARD_SECTION_COUNT = 12;
+ * Started), Night Owls, Early Birds, Weekly Top Coalitions, the Cluster Occupancy Map, the
+ * Evaluation Activity Heatmap, Returning Students, the Weekly Top Coalition Contributors
+ * leaderboard, the Transcendence Completed showcase, and - last, closing out every loop - the
+ * Robot Achievement Showcase. Index-matched to SECTION_TITLES below. */
+const DASHBOARD_SECTION_COUNT = 16;
 
 /** Short section names, index-matched to `activeSection`, shown in the unified TV header bar
  * (see app.html) instead of each section rendering its own in-card title. */
@@ -21,6 +22,10 @@ const SECTION_TITLES: readonly string[] = [
   'Night Owls',
   'Early Birds',
   'Weekly Top Coalitions',
+  'Cluster Occupancy',
+  'Evaluation Activity Heatmap',
+  'Welcome Back',
+  'Weekly Top Coalition Contributors',
   'Transcendence Completed',
   'Achievement Unlock',
 ];

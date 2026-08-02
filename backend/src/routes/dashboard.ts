@@ -194,6 +194,24 @@ export function dashboardRouter(ctx: AppContext): Router {
   );
 
   router.get(
+    '/dashboard/cluster-occupancy',
+    asyncHandler(async (_req, res) => {
+      const occupancy = await ctx.dataService.getClusterOccupancy();
+      const isStale = occupancy.meta.source === 'cache';
+      sendData(res, occupancy, { cached: isStale, staleData: isStale });
+    }),
+  );
+
+  router.get(
+    '/dashboard/weekly-top-contributors',
+    asyncHandler(async (req, res) => {
+      const periodDays = clampInt(req.query.periodDays, 7, 1, 30);
+      const result = await ctx.dataService.getWeeklyContributorLeaderboard(periodDays);
+      sendData(res, result);
+    }),
+  );
+
+  router.get(
     '/dashboard/upcoming-events',
     asyncHandler(async (req, res) => {
       const limit = clampInt(req.query.limit, 5, 1, 50);

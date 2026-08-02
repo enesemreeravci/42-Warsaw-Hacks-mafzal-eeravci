@@ -141,7 +141,9 @@
 }
 
 .app-content--tv {
-  padding: var(--space-4) var(--space-6);
+  // Equal on all four sides, so the TV-mode stage reads as a single consistent border around
+  // the full screen instead of a wider gap on the left/right than top/bottom.
+  padding: var(--space-4);
   max-width: none;
 }
 
