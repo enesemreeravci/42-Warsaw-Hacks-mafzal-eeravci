@@ -630,13 +630,15 @@ export class DataService {
 
   /**
    * Next `limit` upcoming (or currently live) Warsaw campus events, soonest first. Cached under
-   * the default cacheTtlSeconds (5 minutes, same as every route reading through DataService's
-   * cache) rather than a longer custom TTL - the widget's own "refresh every 5 minutes" auto-poll
-   * (DashboardStore's existing auto-refresh interval, not a new timer) lines up with that TTL, so
-   * each poll picks up genuinely new data instead of hammering the 42 API. Like
-   * getWeeklyCampusActivity(), deliberately not part of BackgroundRefreshService's 45s core cycle
-   * - event listings don't need near-real-time warmth, and pre-warming this that often would only
-   * add load against the shared rate limiter for no visible benefit.
+   * the default cacheTtlSeconds (420s / 7 minutes, same as every route reading through
+   * DataService's cache that doesn't override it) rather than a longer custom TTL - the widget's
+   * own "refresh every 5 minutes" auto-poll (DashboardStore's autoRefreshSeconds, a separate
+   * config value, not a new timer) fires more often than this TTL expires, so most polls simply
+   * confirm the cached listing hasn't gone stale rather than re-fetching, without ever going
+   * *longer* than 7 minutes between genuinely fresh pulls. Like getWeeklyCampusActivity(),
+   * deliberately not part of BackgroundRefreshService's 45s core cycle - event listings don't
+   * need near-real-time warmth, and pre-warming this that often would only add load against the
+   * shared rate limiter for no visible benefit.
    */
   async getUpcomingEvents(limit = UPCOMING_EVENTS_LIMIT): Promise<CampusEvent[]> {
     const result = await this.cache.getOrLoad(UPCOMING_EVENTS_KEY, () => this.loadUpcomingEventsRaw());

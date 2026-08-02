@@ -4,8 +4,8 @@ import type { StatusService } from './statusService.js';
 
 // The "core" cycle covers everything the auto-loading dashboard reads: roster + recent
 // completions + coalitions + evaluations. All bounded/fast loaders, so this interval can be
-// short. cacheTtlSeconds (default 300s) must stay comfortably above this so a cache entry is
-// always refreshed well before it would expire under getOrLoad()'s own TTL.
+// short. cacheTtlSeconds (default 420s / 7min) must stay comfortably above this so a cache entry
+// is always refreshed well before it would expire under getOrLoad()'s own TTL.
 const CORE_REFRESH_INTERVAL_MS = 45_000;
 // The historical dataset pages the full, unbounded project-completion history (100+ pages) -
 // expensive enough that refreshing it this often would itself saturate the 42 API rate limit,

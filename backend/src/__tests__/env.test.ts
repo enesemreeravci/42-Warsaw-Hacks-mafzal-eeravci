@@ -31,7 +31,7 @@ describe('loadConfig', () => {
   it('applies documented defaults', () => {
     const config = loadConfig({ FT42_CLIENT_ID: 'id', FT42_CLIENT_SECRET: 'secret' });
     expect(config.port).toBe(3000);
-    expect(config.cacheTtlSeconds).toBe(300);
+    expect(config.cacheTtlSeconds).toBe(420);
     expect(config.autoRefreshSeconds).toBe(300);
     expect(config.requestConcurrency).toBe(4);
   });

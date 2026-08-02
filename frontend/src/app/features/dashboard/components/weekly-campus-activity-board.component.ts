@@ -490,7 +490,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
      * widen too, or .board__content's grid track would just clip the bigger chart back down.
      * (Chart-left/podium-right ordering is now the base layout above, shared by dashboard and TV
      * alike, so no order override is needed here anymore.) */
-    :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; }
+    :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; margin-left: var(--space-3); }
     :host-context(.dashboard--tv) .board__content { grid-template-columns: minmax(180px, 360px) 1fr; }
 
     /* Ranks 4+ list ─────────────────────────────────────────────── */

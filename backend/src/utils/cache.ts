@@ -86,3 +86,39 @@ export class TtlCache<T = unknown> {
     }
   }
 }
+
+/** 7 minutes - the default TTL for getOrFetchCache() below. */
+export const DEFAULT_FETCH_CACHE_TTL_SECONDS = 420;
+
+/** Backs getOrFetchCache() - one shared in-memory store for the process's lifetime. Being a
+ * plain in-memory Map (via TtlCache), it's wiped automatically on every restart; nothing here is
+ * ever persisted to disk, so there's no separate "clear on shutdown" step to implement. */
+const fetchCache = new TtlCache<unknown>(DEFAULT_FETCH_CACHE_TTL_SECONDS * 1000);
+
+/**
+ * Minimal get-or-fetch cache helper for wrapping calls to slow/rate-limited external APIs:
+ * returns the cached payload for `key` if it's still within its TTL; otherwise calls `fetchFn()`,
+ * stores the result for `ttlSeconds` (default 420s / 7 minutes), and returns it. Concurrent calls
+ * for the same key made while a fetch is already in flight share that one fetch rather than
+ * triggering duplicate upstream requests (inherited from TtlCache.getOrLoad's in-flight
+ * de-duplication, above).
+ *
+ * This is a thin, single-purpose wrapper - `DataService` (see services/dataService.ts) already
+ * routes every dashboard/TV endpoint through its own TtlCache instance with per-feature TTLs
+ * tuned to how fast each dataset actually changes (as little as 30s for live cluster occupancy,
+ * up to 45min for slow-moving weekly rollups). Reach for this helper for new call sites that
+ * genuinely want a flat, one-size-fits-all TTL instead.
+ */
+export async function getOrFetchCache<T>(
+  key: string,
+  fetchFn: () => Promise<T>,
+  ttlSeconds: number = DEFAULT_FETCH_CACHE_TTL_SECONDS,
+): Promise<T> {
+  const result = await fetchCache.getOrLoad(key, fetchFn as () => Promise<unknown>, ttlSeconds * 1000);
+  return result.value as T;
+}
+
+/** Test-only escape hatch for getOrFetchCache()'s shared store between test cases. */
+export function clearFetchCache(): void {
+  fetchCache.invalidateAll();
+}

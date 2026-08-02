@@ -83,11 +83,6 @@ function buildNodes(students: ActiveSessionEntry[]): HiveNode[] {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="hive">
-      <header class="hive__header">
-        <span class="hive__dot" aria-hidden="true"></span>
-        <h2 class="hive__title">{{ nodes().length }} cadets on campus right now</h2>
-      </header>
-
       @if (nodes().length === 0) {
         <app-empty-state title="No live sessions" description="No students are currently logged in on campus." />
       } @else {
@@ -119,27 +114,6 @@ function buildNodes(students: ActiveSessionEntry[]): HiveNode[] {
       flex-direction: column;
       height: 100%;
       gap: var(--space-5);
-    }
-
-    .hive__header {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-    }
-
-    .hive__dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: var(--color-accent-strong);
-      box-shadow: 0 0 12px var(--color-accent-glow);
-    }
-
-    .hive__title {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
     }
 
     .hive__stage {

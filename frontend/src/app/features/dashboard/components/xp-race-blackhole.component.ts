@@ -150,7 +150,7 @@ export class XpRaceBlackholeComponent {
     return entries.map((entry, index) => ({
       entry,
       rank: index + 1,
-      medal: MEDALS[index] ?? `#${index + 1}`,
+      medal: MEDALS[index] ?? `${index + 1}`,
       widthPct: Math.max(10, Math.round((entry.weeklyXp / maxXp) * 100)),
       color: BAR_COLORS[index % BAR_COLORS.length]!,
     }));

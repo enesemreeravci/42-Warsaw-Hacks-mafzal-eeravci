@@ -88,7 +88,7 @@ below). **Never commit `.env`** — it's already in `.gitignore`.
 | `FEATURED_LOGIN` | `mafzal` | Login shown in the "Featured student" card |
 | `PORT` | `3000` | Backend port |
 | `FRONTEND_ORIGIN` | `http://localhost:4200` | Allowed CORS origin for local dev |
-| `CACHE_TTL_SECONDS` | `300` | Backend cache TTL |
+| `CACHE_TTL_SECONDS` | `420` | Backend in-memory cache TTL (7 minutes) |
 | `AUTO_REFRESH_SECONDS` | `300` | Frontend auto-refresh interval (served via `/api/config`) |
 | `REQUEST_CONCURRENCY` | `4` | Concurrency cap for any fallback per-item 42 API calls |
 | `LOG_LEVEL` | `info` | pino log level |

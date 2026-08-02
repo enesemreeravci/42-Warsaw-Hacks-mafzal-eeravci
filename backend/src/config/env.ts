@@ -19,7 +19,7 @@ const envSchema = z
     FEATURED_LOGIN: z.string().default('mafzal'),
     PORT: intFromString(3000),
     FRONTEND_ORIGIN: z.string().default('http://localhost:4200'),
-    CACHE_TTL_SECONDS: intFromString(300),
+    CACHE_TTL_SECONDS: intFromString(420),
     AUTO_REFRESH_SECONDS: intFromString(300),
     REQUEST_CONCURRENCY: intFromString(4),
     LOG_LEVEL: z.string().default('info'),
