@@ -8,14 +8,6 @@ view for day-to-day browsing.
 
 > Built by  (`mafzal`)  (`eeravci`) for the 42 Warsaw Hacks hackathon.
 
-## Screenshots
-
-_Add screenshots here before presenting — e.g. `docs/screenshots/dashboard.png`,
-`docs/screenshots/tv-mode.png`, `docs/screenshots/students.png`._
-
-| Dashboard | TV Mode | Students |
-|---|---|---|
-| _placeholder_ | _placeholder_ | _placeholder_ |
 
 ## Software architecture
 
@@ -70,7 +62,7 @@ backend/   — Express + TypeScript "backend-for-frontend"
 
 ```bash
 git clone <this-repo>
-cd 42-warsaw-progress-insight
+cd <this-repo>
 npm install
 ```
 
