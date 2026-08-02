@@ -1,11 +1,12 @@
 # 42 Warsaw Insight
 
-A TV-friendly dashboard built for the **42 Warsaw Hacks: Learning Progress Insight**
-hackathon. It shows Common Core learning-progress and community metrics for the 42 Warsaw
-campus, sourced live from the official 42 API — designed to run on a 1920×1080 TV in the
-Warsaw Social Space.
+A TV-friendly dashboard for the 42 Warsaw campus. It shows Common Core learning-progress and
+community metrics — completion trends, top students, coalition standings, live campus
+activity, evaluations, and more — sourced **live from the official 42 API**, with a full-screen
+"TV Mode" designed to rotate unattended on a 1920×1080 display, plus a normal desktop Dashboard
+view for day-to-day browsing.
 
-> Built by **Muhammad Afzal** (`mafzal`) for the 42 Warsaw Hacks hackathon.
+> Built by  (`mafzal`)  (`eeravci`) for the 42 Warsaw Hacks hackathon.
 
 ## Screenshots
 
@@ -16,31 +17,54 @@ _Add screenshots here before presenting — e.g. `docs/screenshots/dashboard.png
 |---|---|---|
 | _placeholder_ | _placeholder_ | _placeholder_ |
 
-## Architecture summary
+## Software architecture
+
+This is an npm-workspaces monorepo with two apps that only ever talk to each other over HTTP —
+they never share code or credentials directly:
 
 ```
 Browser (TV or desktop)
-   │  same-origin /api/* calls only
+   │  same-origin /api/* calls only — the frontend never talks to 42 directly
    ▼
-Angular 22 frontend (standalone components, signals, zoneless)
-   │  proxied in dev, reverse-proxied by nginx in prod
+frontend/  — Angular 22, standalone components, signals, zoneless change detection
+   │  in dev: `ng serve` + proxy.conf.json forwards /api/* to :3000
+   │  in prod: `ng build` static output, served by any static file server /
+   │           reverse proxy that forwards /api/* to the backend
    ▼
-Express + TypeScript backend-for-frontend
-   │  OAuth Client Credentials, caching, pagination, discovery
+backend/   — Express + TypeScript "backend-for-frontend"
+   │  OAuth Client Credentials token management, in-memory TTL caching,
+   │  background pre-warming, rate-limited pagination, campus/cursus discovery
    ▼
-42 API v2 (api.intra.42.fr)
+42 API v2 (https://api.intra.42.fr)
 ```
 
-The 42 Client ID/Secret exist **only** on the backend. The frontend never sees them, never
-calls the 42 API directly, and never stores anything credential-shaped. Full details in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- **`frontend/`** — Angular 22 app (`src/app/`) split into `core/` (services: `ApiService`,
+  `DashboardStore`, `ThemeService`, `TvModeService`, `AutoLoopService`, ...), `features/`
+  (routed pages: dashboard, students, evaluations, black hole, about) and `shared/` (reusable
+  UI). State is signal-based (`signal()`/`computed()`/`effect()`), not an NgRx/RxJS store; the
+  one polling/caching layer is `DashboardStore`, which the dashboard page and its child
+  components read from. Chart.js (via `ng2-charts`) renders all charts; Angular Material
+  supplies base UI primitives (buttons, menus, tooltips), heavily re-skinned.
+- **`backend/`** — Express app (`src/app.ts`) mounting one router per resource under `/api`
+  (`src/routes/*.ts`), each backed by a service (`src/services/*.ts`). `TokenManager` owns the
+  42 OAuth Client-Credentials token (fetch, cache, auto-renew before expiry, de-duplicate
+  concurrent refreshes). `Ft42ApiClient` wraps `axios` with rate-limit-aware pagination and a
+  single 401 retry. `DiscoveryService` resolves the configured campus/cursus **name** (e.g.
+  "Warsaw") to the 42 API's internal numeric IDs once at startup. `DataService` owns the "core
+  dataset" (students + completions) plus per-feature snapshots (coalitions, evaluations, weekly
+  campus activity, black hole, ...), each wrapped in `TtlCache` (stampede protection +
+  stale-while-revalidate) and kept warm by `BackgroundRefreshService` on an interval — so a
+  normal `GET /api/dashboard/*` request only ever reads from cache and never blocks on a live
+  42 API round-trip.
+- **Credential boundary**: `FT42_CLIENT_ID`/`FT42_CLIENT_SECRET` exist **only** as backend
+  environment variables. The frontend never sees them, never calls `api.intra.42.fr` directly,
+  and never stores anything credential-shaped (no `localStorage`/cookies/URL params).
 
 ## Prerequisites
 
 - Node.js 24.15.0+ and npm 10+
 - A 42 API OAuth application — see below. **Required**; this dashboard runs entirely on
   live 42 API data and has no offline/demo mode.
-- Docker + Docker Compose (optional, for containerized runs)
 
 ## Installation
 
@@ -97,19 +121,24 @@ If `FT42_CLIENT_ID`/`FT42_CLIENT_SECRET` are missing, the backend **fails fast a
 with a clear message telling you to fill in credentials — there is no demo/offline mode to
 fall back to.
 
-## Local development
+## How to run the project
+
+### Local development (recommended)
 
 ```bash
 npm run dev
 ```
 
-This runs the backend (`tsx watch`, hot-reloading) and `ng serve` (with a dev proxy so the
-Angular app's `/api/*` calls reach the backend) concurrently.
+This runs the backend (`tsx watch`, hot-reloading on save) and `ng serve` (with a dev proxy so
+the Angular app's `/api/*` calls reach the backend) concurrently, from the repo root.
 
 - Frontend: **http://localhost:4200**
 - Backend: **http://localhost:3000**
 
-## Production build
+Both must be running for the app to work — `npm run dev` starts them together, so this is the
+only command you need for day-to-day development or a demo.
+
+### Production build
 
 ```bash
 npm run build
@@ -123,23 +152,7 @@ npm run start --workspace backend   # after npm run build
 ```
 
 Serve `frontend/dist/frontend/browser` with any static file server / reverse proxy that
-forwards `/api` to the backend (this is exactly what the Docker setup below does).
-
-## Docker
-
-```bash
-cp .env.example .env   # fill in your 42 API credentials
-docker compose up --build
-```
-
-- Frontend (nginx, reverse-proxying `/api` to the backend): **http://localhost:4200**
-- Backend: **http://localhost:3000**
-
-Neither Dockerfile copies `.env` into the image — the backend container reads its
-environment at **runtime** via `env_file` in `docker-compose.yml`. Both images run as
-non-root users and expose a `HEALTHCHECK`.
-
-The app also works entirely without Docker (see Local development / Production build above).
+forwards `/api/*` to the backend process above.
 
 ## Test commands
 
@@ -155,11 +168,13 @@ metric/normalization pure functions, and REST route behavior (via `supertest` ag
 app wired to fixture-backed fakes of the 42 API client, so no live credentials or network
 access are needed to run the suite).
 
-Frontend tests cover: the app shell component, a presentational component (`StatCardComponent`),
-`AvatarComponent`, the `RelativeTimePipe`, and `ApiService` (request shape/URL assertions via
-`HttpClientTestingModule`).
+Frontend tests cover: the app shell component, presentational components (`AvatarComponent`,
+`StatCardComponent`, dashboard panel components), pipes, and `ApiService` (request shape/URL
+assertions via `HttpClientTestingModule`).
 
-## API routes
+## API endpoints
+
+### Backend REST API (what the frontend actually calls)
 
 All responses use a consistent envelope: `{ data, meta: { generatedAt, cached, staleData? } }`
 on success, `{ error: { code, message } }` on failure. Full endpoint list, query parameters,
@@ -176,19 +191,48 @@ and semantics are documented inline in `backend/src/routes/*.ts`; a summary:
 | GET | `/api/dashboard/top-students` | Rankings (`metric`, `limit`, `days`) |
 | GET | `/api/dashboard/live-pulse` | TV mode: active sessions, weekly XP leaderboard, black hole watch, achievement feed |
 | GET | `/api/dashboard/coalitions` | Coalition leaderboard, ranked by score |
-| GET | `/api/dashboard/evaluations` | Recent peer evaluations (`limit`) - corrected student, project, pass/fail flag, mark only; never comments/feedback |
+| GET | `/api/dashboard/evaluations` | Recent peer evaluations (`limit`) — corrected student, project, pass/fail flag, mark only; never comments/feedback |
+| GET | `/api/dashboard/weekly-campus-activity` | Most campus time / most sessions / night owls / early birds, last 7 days |
+| GET | `/api/dashboard/cluster-occupancy` | Live seat occupancy per cluster |
+| GET | `/api/dashboard/weekly-top-contributors` | Top contributors leaderboard (`periodDays`) |
+| GET | `/api/dashboard/upcoming-events` | Upcoming campus events (`limit`) |
 | POST | `/api/dashboard/refresh` | Invalidate + eagerly reload the cache |
 | GET | `/api/students` | Paginated/searchable/sortable student list |
+| GET | `/api/students/returning` | Students who returned to campus after time away |
 | GET | `/api/students/:login` | Student profile + progress detail |
 | GET | `/api/projects` | Normalized Common Core project list |
 | GET | `/api/projects/:projectId/metrics` | Per-project completion/success metrics |
+| GET | `/api/evaluations/analytics` | Evaluation volume/pass-rate analytics over a date range |
+| GET | `/api/blackhole/status` | Black hole watch: upcoming and recent black holes campus-wide |
 | GET | `/api/status/42` | 42 API reachability/auth status (never returns tokens) |
+
+### External 42 API endpoints used
+
+The backend is the only thing that ever calls `https://api.intra.42.fr` (base URL configurable
+via `FT42_API_BASE_URL`). All calls use an OAuth **Client Credentials** app token — no personal
+login is ever involved. Endpoints consumed:
+
+| 42 API endpoint | Used for |
+|---|---|
+| `POST /oauth/token` | Fetching the Client Credentials access token (`TokenManager`) |
+| `GET /v2/campus`, `GET /v2/campus/:id` | Resolving `FT42_CAMPUS_NAME` to a campus ID at startup |
+| `GET /v2/cursus`, `GET /v2/cursus/:id` | Resolving `FT42_CURSUS_NAME` to a cursus ID at startup |
+| `GET /v2/cursus/:cursusId/projects` | The Common Core project catalog |
+| `GET /v2/cursus_users` | The student roster (level, active status, profile info) |
+| `GET /v2/projects_users` | Project completions/progress — the core of the trend, top-projects and top-students metrics |
+| `GET /v2/campus/:id/locations` | Cluster login sessions — powers active-now, cluster occupancy, and weekly campus-time/sessions/night-owls/early-birds |
+| `GET /v2/campus/:id/events` | Upcoming campus events |
+| `GET /v2/blocs` | Coalition/campus scoping (used instead of `/v2/coalitions`, which ignores the campus filter) |
+| `GET /v2/coalitions_users` | Coalition membership and points, for the coalition leaderboard |
+| `GET /v2/scale_teams` | Peer evaluations — for the evaluations feed and evaluation analytics |
 
 ## TV mode controls
 
-- Click the TV icon in the header, or press **T**, to enter/exit TV mode.
-- TV mode hides normal navigation, goes edge-to-edge, and auto-rotates through 4 dashboard
-  section groups every 15 seconds (pauses when the tab is hidden, resumes when visible).
+- Click the TV icon in the sidebar, or press **T**, to enter/exit TV mode.
+- TV mode hides normal navigation, goes edge-to-edge, and auto-rotates through a sequence of
+  full-screen sections (pauses when the tab is hidden, resumes when visible).
+- The **Mode** toggle in the sidebar (icon-only: loop/touch icon) switches between Manual and
+  Auto — Auto continuously cycles TV Mode and the Dashboard's own auto-scroll, back to back.
 - **R** — refresh now. **Escape** — exit browser fullscreen.
 - The fullscreen icon toggles real browser fullscreen (useful for a TV/kiosk browser).
 - Respects `prefers-reduced-motion`.
@@ -201,12 +245,12 @@ and semantics are documented inline in `backend/src/routes/*.ts`; a summary:
 | Dashboard shows "Stale data" badge | 42 API temporarily unreachable | Expected behavior — last good data is kept; check `/api/status/42` |
 | Frontend can't reach the backend in dev | `ng serve` not using the proxy | Use `npm run dev` (or `npm run start --workspace frontend`, which passes `--proxy-config`) |
 | "Campus/Cursus could not be found" at startup | `FT42_CAMPUS_NAME`/`FT42_CURSUS_NAME` doesn't match any 42 API record | Check spelling, or set `FT42_CAMPUS_ID`/`FT42_CURSUS_ID` directly |
-| Docker frontend can't reach the backend | Compose network/service name mismatch | Confirm both services are defined in the same `docker-compose.yml` (service name `backend` is hard-coded in `frontend/nginx.conf`) |
+| Backend port `3000`/frontend port `4200` already in use | A previous `npm run dev` didn't shut down cleanly | `scripts/dev.cmd` already kills anything listening on those ports before starting — just re-run `npm run dev` |
 
 ## Security notes
 
 - Client ID/Secret: backend environment variables only. Never in Angular code,
-  `localStorage`/`sessionStorage`/cookies, committed files, or Docker images.
+  `localStorage`/`sessionStorage`/cookies, or committed files.
 - The frontend calls only local `/api/*` endpoints — verified by scanning the production
   bundle for secret-shaped strings as part of manual verification.
 - Logs (both frontend console and backend `pino` output) never print tokens or secrets; the
@@ -215,21 +259,12 @@ and semantics are documented inline in `backend/src/routes/*.ts`; a summary:
 
 ## Limitations
 
-In-memory cache only (no Redis), no persistent historical database, no authentication on the
-dashboard itself (by design, for a shared physical display), and a few documented 42 API
-field-completeness assumptions. Full details: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
-
-## Hackathon deliverables
-
-- [x] Working Angular + Express monorepo, runnable via root npm scripts
-- [x] Live 42 API integration via a credential-safe backend-for-frontend
-- [x] Always-live 42 API integration - no demo/offline fallback, hardened with in-memory caching, retry/backoff, and stale-data serving on transient outages
-- [x] TV mode for 1920×1080 display
-- [x] `docs/API_RESEARCH.md`, `docs/ARCHITECTURE.md`, `docs/METRICS.md`,
-      `docs/LIMITATIONS.md`, `docs/PITCH.md`
-- [x] Docker support (with and without Docker both work)
-- [x] Backend + frontend automated tests
+In-memory cache only (no Redis/database), no persistent historical store beyond the coalition
+score snapshot history (`backend/data/`), no authentication on the dashboard itself (by design,
+for a shared physical display), and a few documented 42 API field-completeness assumptions
+(see the inline comments in `backend/src/services/*.ts` for specifics per metric).
 
 ## Contributors
 
-- **Muhammad Afzal** — [`mafzal`](https://profile.intra.42.fr/users/mafzal) — 42 Warsaw
+- **M** — [`mafzal`](https://profile.intra.42.fr/users/mafzal) — 42 Warsaw
+- [`eeravci`](https://profile.intra.42.fr/users/eeravci) — 42 Warsaw
