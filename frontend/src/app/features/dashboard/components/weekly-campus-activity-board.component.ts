@@ -469,7 +469,9 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
      * the title gone, it's the only text in the header, so it's nudged toward the right instead
      * of sitting isolated at the far left edge. */
     :host-context(.dashboard--tv) .board__title { display: none; }
-    :host-context(.dashboard--tv) .board__meta { text-align: right; }
+    // padding-right (not just text-align) keeps this clear of the floating narrator mascot,
+    // which tends to sit right around the TV stage's top-right corner.
+    :host-context(.dashboard--tv) .board__meta { text-align: right; padding-right: var(--space-8); }
 
     :host-context(.dashboard--tv) .board__chart-total   { font-size: 2.1rem; }
     :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }
