@@ -1,5 +1,10 @@
 @use '@angular/material' as mat;
 
+$_typography: (
+  plain-family: 'Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
+  brand-family: 'Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
+);
+
 html {
   color-scheme: dark;
   @include mat.theme(
@@ -9,17 +14,35 @@ html {
         primary: mat.$cyan-palette,
         tertiary: mat.$green-palette,
       ),
-      typography: (
-        plain-family: 'Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
-        brand-family: 'Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
+      typography: $_typography,
+      density: 0,
+    )
+  );
+}
+
+/* Angular Material supports multiple scoped themes (see
+   https://material.angular.dev/guide/theming#multiple-themes) - this second call re-emits the
+   same `--mat-sys-*` tokens under `html[data-theme='light']`, which wins over the dark block
+   above (same element, higher-specificity attribute selector) whenever ThemeService sets that
+   attribute. Angular Material's own chrome (buttons, menus, tooltips, toggles) then re-themes
+   itself automatically - no per-component Material overrides needed. */
+html[data-theme='light'] {
+  color-scheme: light;
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: mat.$cyan-palette,
+        tertiary: mat.$green-palette,
       ),
+      typography: $_typography,
       density: 0,
     )
   );
 }
 
 :root {
-  /* --- 42 Warsaw design tokens --- */
+  /* --- 42 Warsaw design tokens (dark - default) --- */
   --color-bg: #06080a;
   --color-bg-elevated: #0d1013;
   --color-bg-card: #12161a;
@@ -63,14 +86,70 @@ html {
   --glass-blur: 18px;
   --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
+  /* --- Navigation chrome (sidebar / header bars) --- */
+  --nav-bg: rgba(9, 12, 15, 0.9);
+
+  /* --- Subtle surface tints: faint fills/borders/hover states layered on cards. In dark mode
+     these lighten the surface a touch (white at low opacity); in light mode (below) the same
+     names darken it instead, so every spot using them stays legible without a design-time
+     lookup of which literal value to flip. */
+  --surface-tint-faint: rgba(255, 255, 255, 0.025);
+  --surface-tint-soft: rgba(255, 255, 255, 0.03);
+  --surface-tint-mild: rgba(255, 255, 255, 0.04);
+  --surface-tint-base: rgba(255, 255, 255, 0.05);
+  --surface-tint-strong: rgba(255, 255, 255, 0.055);
+
+  /* --- Body background gradient accent (see body rule below) --- */
+  --body-gradient-corner: #0d1720;
+
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    /* This dashboard is intentionally dark-first for TV/social-space legibility;
-       we still avoid a forced-white flash by keeping the palette above as default. */
-  }
+/* --- Light mode overrides ---
+   Same token names, crisp light values: soft off-white/light-gray surfaces, deep slate text,
+   light-blue accent, and refined shadows/borders instead of dark neon glows. Everything that
+   already reads from these custom properties (which is nearly every component in the app)
+   re-themes automatically the instant ThemeService flips this attribute - no per-component
+   change needed beyond the handful of places that talk to Chart.js/canvas directly (those can't
+   read CSS custom properties, so they ask ThemeService.isLight() directly instead). */
+:root[data-theme='light'] {
+  --color-bg: #f3f5f8;
+  --color-bg-elevated: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #eef2f6;
+  --color-border: #dde3ea;
+  --color-border-strong: #c2ccd6;
+
+  --color-text-primary: #111827;
+  --color-text-secondary: #48576b;
+  --color-text-muted: #75818f;
+
+  --color-accent: #0ea5e9;
+  --color-accent-strong: #0284c7;
+  --color-accent-glow: rgba(14, 165, 233, 0.22);
+  --color-info: #2f8fdd;
+  --color-warn: #b45309;
+  --color-danger: #dc2626;
+  --color-success: #15803d;
+
+  --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.08);
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-shadow: 0 12px 32px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  --nav-bg: rgba(255, 255, 255, 0.85);
+
+  --surface-tint-faint: rgba(15, 23, 42, 0.03);
+  --surface-tint-soft: rgba(15, 23, 42, 0.035);
+  --surface-tint-mild: rgba(15, 23, 42, 0.045);
+  --surface-tint-base: rgba(15, 23, 42, 0.055);
+  --surface-tint-strong: rgba(15, 23, 42, 0.07);
+
+  --body-gradient-corner: #e6f1fb;
+
+  color-scheme: light;
 }
 
 * {
@@ -85,11 +164,12 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at top left, #0d1720 0%, var(--color-bg) 45%) fixed;
+  background: radial-gradient(circle at top left, var(--body-gradient-corner) 0%, var(--color-bg) 45%) fixed;
   color: var(--color-text-primary);
   font-family: var(--font-display);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  transition: background var(--transition-standard), color var(--transition-standard);
 }
 
 a {

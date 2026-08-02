@@ -1,12 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
+import { ThemeService } from '../../../core/services/theme.service';
+import { chartSegmentBorderColor } from '../../../shared/utils/chart-theme.util';
 
+const TOTAL_COLOR = '#4cc9f0';
 const ACTIVE_COLOR = '#34e2c4';
-const INACTIVE_COLOR = 'rgba(154, 171, 181, 0.35)';
+const OTHER_COLOR = '#ffb020';
 
 /** Compact donut alongside the summary stat cards - the "at a glance" numbers get one chart
- * to anchor them instead of reading as a wall of digits. */
+ * to anchor them instead of reading as a wall of digits. Each status (Total/Active/Other) is
+ * given its own distinct, high-contrast color so the legend stays legible at a glance - "Total"
+ * isn't a chart segment (it's the sum of the other two, not a subset of it), but it's still
+ * shown with its own dot color for visual consistency with the other two rows. */
 @Component({
   selector: 'app-community-split-chart',
   standalone: true,
@@ -21,8 +27,9 @@ const INACTIVE_COLOR = 'rgba(154, 171, 181, 0.35)';
           <span class="split-card__pct">{{ activePct() }}%</span>
         </div>
         <ul class="split-card__legend">
+          <li><span class="dot dot--total" aria-hidden="true"></span>Total Students <strong>{{ totalStudents() }}</strong></li>
           <li><span class="dot dot--active" aria-hidden="true"></span>Active <strong>{{ activeStudents() }}</strong></li>
-          <li><span class="dot dot--inactive" aria-hidden="true"></span>Other <strong>{{ inactiveCount() }}</strong></li>
+          <li><span class="dot dot--other" aria-hidden="true"></span>Other <strong>{{ inactiveCount() }}</strong></li>
         </ul>
       </div>
     </article>
@@ -98,16 +105,22 @@ const INACTIVE_COLOR = 'rgba(154, 171, 181, 0.35)';
       margin-right: var(--space-2);
     }
 
+    .dot--total {
+      background: ${TOTAL_COLOR};
+    }
+
     .dot--active {
       background: ${ACTIVE_COLOR};
     }
 
-    .dot--inactive {
-      background: ${INACTIVE_COLOR};
+    .dot--other {
+      background: ${OTHER_COLOR};
     }
   `,
 })
 export class CommunitySplitChartComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly totalStudents = input.required<number>();
   readonly activeStudents = input.required<number>();
 
@@ -127,8 +140,8 @@ export class CommunitySplitChartComponent {
     datasets: [
       {
         data: [this.activeStudents(), this.inactiveCount()],
-        backgroundColor: [ACTIVE_COLOR, INACTIVE_COLOR],
-        borderColor: 'rgba(6, 8, 10, 0.6)',
+        backgroundColor: [ACTIVE_COLOR, OTHER_COLOR],
+        borderColor: chartSegmentBorderColor(this.theme.isLight(), 0.6),
         borderWidth: 2,
       },
     ],

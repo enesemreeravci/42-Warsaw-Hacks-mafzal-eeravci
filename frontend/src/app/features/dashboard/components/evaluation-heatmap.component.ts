@@ -7,11 +7,50 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 const HOUR_LABELS = Array.from({ length: 9 }, (_, i) => `${String(i * 3).padStart(2, '0')}:00`);
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function heatmapCellColor(count: number, p90: number): string {
-  if (count === 0 || p90 === 0) return 'rgba(255, 255, 255, 0.05)';
-  const intensity = Math.min(count / p90, 1);
-  return `rgba(76, 201, 240, ${0.15 + intensity * 0.75})`;
+/** High-contrast heatmap scale: dark navy (quiet) through vibrant purple and electric blue up to
+ * warm orange (peak activity) - four RGB stops, linearly interpolated by intensity. Also drives
+ * the legend bar's CSS gradient below, so the two always stay in sync. */
+const HEATMAP_COLOR_STOPS: ReadonlyArray<{ pos: number; rgb: readonly [number, number, number] }> = [
+  { pos: 0, rgb: [17, 11, 41] }, // dark navy
+  { pos: 0.35, rgb: [123, 47, 247] }, // vibrant purple
+  { pos: 0.7, rgb: [0, 194, 255] }, // electric blue
+  { pos: 1, rgb: [255, 140, 40] }, // warm orange
+];
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
+
+/** Interpolates the RGB stops above at a given 0-1 intensity. Exported implicitly via
+ * `heatmapCellColor`/the legend gradient string below, kept as one shared source of truth. */
+function heatmapGradientRgb(intensity: number): [number, number, number] {
+  const t = Math.min(Math.max(intensity, 0), 1);
+  for (let i = 0; i < HEATMAP_COLOR_STOPS.length - 1; i++) {
+    const a = HEATMAP_COLOR_STOPS[i]!;
+    const b = HEATMAP_COLOR_STOPS[i + 1]!;
+    if (t <= b.pos) {
+      const segmentT = b.pos === a.pos ? 0 : (t - a.pos) / (b.pos - a.pos);
+      return [
+        Math.round(lerp(a.rgb[0], b.rgb[0], segmentT)),
+        Math.round(lerp(a.rgb[1], b.rgb[1], segmentT)),
+        Math.round(lerp(a.rgb[2], b.rgb[2], segmentT)),
+      ];
+    }
+  }
+  return [...HEATMAP_COLOR_STOPS[HEATMAP_COLOR_STOPS.length - 1]!.rgb];
+}
+
+function heatmapCellColor(count: number, p90: number): string {
+  if (count === 0 || p90 === 0) return 'var(--surface-tint-base)';
+  const intensity = Math.min(count / p90, 1);
+  const [r, g, b] = heatmapGradientRgb(intensity);
+  return `rgba(${r}, ${g}, ${b}, ${0.45 + intensity * 0.55})`;
+}
+
+/** Mirrors HEATMAP_COLOR_STOPS above as a plain literal - the @Component decorator's `styles`
+ * must be statically analyzable, which rules out building this string via .map()/.join() at
+ * module scope, so the four stops are spelled out here by hand instead. */
+const LEGEND_GRADIENT = 'linear-gradient(90deg, rgb(17, 11, 41) 0%, rgb(123, 47, 247) 35%, rgb(0, 194, 255) 70%, rgb(255, 140, 40) 100%)';
 
 /**
  * TV-mode view of the Evaluation Activity Heatmap - reuses the exact same
@@ -219,7 +258,7 @@ function heatmapCellColor(count: number, p90: number): string {
       width: 140px;
       height: 10px;
       border-radius: 999px;
-      background: linear-gradient(90deg, rgba(76, 201, 240, 0.08), rgba(76, 201, 240, 0.9));
+      background: ${LEGEND_GRADIENT};
     }
 
     .eval-heatmap__insights {

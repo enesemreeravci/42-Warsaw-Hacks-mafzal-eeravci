@@ -197,7 +197,7 @@ function seatView(w: ClusterWorkstation): SeatView {
     }
 
     .seat--empty {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-tint-base);
     }
 
     .seat--occupied {
@@ -231,16 +231,27 @@ function seatView(w: ClusterWorkstation): SeatView {
       text-align: center;
     }
 
-    /* TV mode — bigger cluster cards, seats, and stats so the grid genuinely fills a large
-     * screen instead of just technically reaching full container height with small content. */
-    :host-context(.dashboard--tv) .stat__value { font-size: 2.4rem; }
-    :host-context(.dashboard--tv) .stat__label { font-size: 0.85rem; }
-    :host-context(.dashboard--tv) .occupancy__grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-5); }
-    :host-context(.dashboard--tv) .cluster-card { padding: var(--space-5); gap: var(--space-4); }
-    :host-context(.dashboard--tv) .cluster-card__name { font-size: 1.6rem; }
-    :host-context(.dashboard--tv) .cluster-card__occupancy { font-size: 1.05rem; }
-    :host-context(.dashboard--tv) .cluster-card__footer { font-size: 0.95rem; }
-    :host-context(.dashboard--tv) .seat { width: 30px; height: 30px; border-radius: 6px; }
+    /* TV mode — the grid is stretched to substantially fill the stage's width and height (not
+     * just technically reach full container height with small content floating in it): bigger
+     * min-height, bigger cluster cards, bigger seats, and the grid itself set to flex so it
+     * actually claims the vertical space left over by the summary stats instead of hugging its
+     * own content size. */
+    :host-context(.dashboard--tv) .occupancy { min-height: 86vh; }
+    :host-context(.dashboard--tv) .stat__value { font-size: 2.6rem; }
+    :host-context(.dashboard--tv) .stat__label { font-size: 0.9rem; }
+    :host-context(.dashboard--tv) .occupancy__grid {
+      flex: 1;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      grid-auto-rows: 1fr;
+      align-content: stretch;
+      gap: var(--space-6);
+    }
+    :host-context(.dashboard--tv) .cluster-card { padding: var(--space-6); gap: var(--space-5); }
+    :host-context(.dashboard--tv) .cluster-card__name { font-size: 2rem; }
+    :host-context(.dashboard--tv) .cluster-card__occupancy { font-size: 1.2rem; }
+    :host-context(.dashboard--tv) .cluster-card__seats { gap: 7px; }
+    :host-context(.dashboard--tv) .cluster-card__footer { font-size: 1.1rem; gap: var(--space-4); }
+    :host-context(.dashboard--tv) .seat { width: 42px; height: 42px; border-radius: 8px; }
   `,
 })
 export class ClusterOccupancyMapComponent {

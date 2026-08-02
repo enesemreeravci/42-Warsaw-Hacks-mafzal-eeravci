@@ -1,15 +1,14 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import type { CoalitionStanding, DashboardSummary } from '../../../core/models/api.models';
-import { CommunityLevelCardComponent } from './community-level-card.component';
 import { NarratorTargetDirective } from '../narrator-target.directive';
 import { ProjectActivityCardComponent } from './project-activity-card.component';
 import { RecentCoalitionActivityComponent } from './recent-coalition-activity.component';
 import { StudentOverviewCardComponent } from './student-overview-card.component';
 
 /**
- * Dedicated analytics/stats section for the main dashboard: three cards side by side (student
- * overview, project activity, community & level) followed by a full-width recent coalition
- * activity feed underneath. Purely a layout + narrator-wiring shell - each card is a standalone,
+ * Dedicated analytics/stats section for the main dashboard: two cards side by side (student
+ * overview, project activity) followed by a full-width recent coalition activity feed
+ * underneath. Purely a layout + narrator-wiring shell - each card is a standalone,
  * independently reusable component that takes its own primitive inputs (no shared state, no
  * dashboard-store dependency), so this section could be dropped into another page unchanged.
  */
@@ -19,7 +18,6 @@ import { StudentOverviewCardComponent } from './student-overview-card.component'
   imports: [
     StudentOverviewCardComponent,
     ProjectActivityCardComponent,
-    CommunityLevelCardComponent,
     RecentCoalitionActivityComponent,
     NarratorTargetDirective,
   ],
@@ -49,19 +47,6 @@ import { StudentOverviewCardComponent } from './student-overview-card.component'
             [averageCompletionRate]="summary()?.averageCompletionRate ?? 0"
           />
         </div>
-
-        <div
-          class="dashboard-analytics__cell"
-          [appNarratorTarget]="'analytics-community'"
-          [class.narrator-highlight]="activeCueId() === 'analytics-community'"
-          [style.--highlight-color]="activeCueColor()"
-        >
-          <app-community-level-card
-            [totalStudents]="summary()?.totalStudents ?? 0"
-            [activeStudents]="summary()?.activeStudents ?? 0"
-            [averageLevel]="summary()?.averageLevel ?? 0"
-          />
-        </div>
       </div>
 
       <div
@@ -83,7 +68,7 @@ import { StudentOverviewCardComponent } from './student-overview-card.component'
 
     .dashboard-analytics__grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: var(--space-4);
       align-items: stretch;
     }

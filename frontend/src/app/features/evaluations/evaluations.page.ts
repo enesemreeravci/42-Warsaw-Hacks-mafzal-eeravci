@@ -21,7 +21,9 @@ import type {
   EvaluationRangeOption,
 } from '../../core/models/api.models';
 import { ApiService } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
+import { chartAxisColors } from '../../shared/utils/chart-theme.util';
 
 type EvaluationGranularity = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -40,7 +42,7 @@ const GRANULARITY_OPTIONS: { label: string; value: EvaluationGranularity }[] = [
 ];
 
 function heatmapCellColor(count: number, p90: number): string {
-  if (count === 0 || p90 === 0) return 'rgba(255,255,255,0.04)';
+  if (count === 0 || p90 === 0) return 'var(--surface-tint-mild)';
   const intensity = Math.min(count / p90, 1);
   return `rgba(76, 201, 240, ${0.12 + intensity * 0.78})`;
 }
@@ -182,7 +184,7 @@ function heatmapCellColor(count: number, p90: number): string {
             <h2 class="panel__title">Activity</h2>
             @if (activityChartData(); as chartData) {
               <div class="chart-container">
-                <canvas baseChart type="bar" [data]="chartData" [options]="activityChartOptions"
+                <canvas baseChart type="bar" [data]="chartData" [options]="activityChartOptions()"
                   role="img" aria-label="Evaluation activity bar chart"></canvas>
               </div>
             } @else {
@@ -691,7 +693,7 @@ function heatmapCellColor(count: number, p90: number): string {
       gap: var(--space-3);
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
-      background: rgba(255,255,255,0.03);
+      background: var(--surface-tint-soft);
       border: 1px solid transparent;
       transition: border-color 150ms;
 
@@ -761,7 +763,7 @@ function heatmapCellColor(count: number, p90: number): string {
       gap: var(--space-3);
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
-      background: rgba(255,255,255,0.03);
+      background: var(--surface-tint-soft);
     }
 
     .timeline-item__flag {
@@ -806,6 +808,7 @@ function heatmapCellColor(count: number, p90: number): string {
 export class EvaluationsPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly theme = inject(ThemeService);
 
   protected readonly rangeOptions = RANGE_OPTIONS;
   protected readonly granularityOptions = GRANULARITY_OPTIONS;
@@ -854,23 +857,26 @@ export class EvaluationsPage implements OnInit {
     };
   });
 
-  protected readonly activityChartOptions: ChartConfiguration<'bar'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 300 },
-    plugins: { legend: { display: false } },
-    scales: {
-      x: {
-        ticks: { color: '#9aabb5', maxRotation: 45 },
-        grid: { color: 'rgba(255,255,255,0.05)' },
+  protected readonly activityChartOptions = computed<ChartConfiguration<'bar'>['options']>(() => {
+    const { tick, grid } = chartAxisColors(this.theme.isLight());
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: tick, maxRotation: 45 },
+          grid: { color: grid },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: tick, precision: 0 },
+          grid: { color: grid },
+        },
       },
-      y: {
-        beginAtZero: true,
-        ticks: { color: '#9aabb5', precision: 0 },
-        grid: { color: 'rgba(255,255,255,0.05)' },
-      },
-    },
-  };
+    };
+  });
 
   ngOnInit(): void {
     merge(

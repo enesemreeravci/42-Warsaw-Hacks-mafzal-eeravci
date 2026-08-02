@@ -5,26 +5,53 @@ import { ApiService } from '../../../core/services/api.service';
 import { TvModeService } from '../../../core/services/tv-mode.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
+import { LoadingSkeletonComponent } from '../../../shared/components/loading-skeleton/loading-skeleton.component';
 
 /** How many of the top returning students rotate through the spotlight. */
 const SPOTLIGHT_SIZE = 5;
 const ROTATION_MS = 9000;
 
+/** TV mode's `@switch` destroys and recreates this component every time the rotation cycles back
+ * to it (see dashboard.page.html), which would otherwise mean a fresh network round-trip - and a
+ * visible loading flash - every single time this section comes back around, even though the data
+ * rarely changes that fast. This module-level (not component-instance) memo survives across those
+ * remounts: a cached response younger than the TTL is shown instantly with zero loading state,
+ * while a fresh fetch still happens quietly underneath to keep it from ever going stale for long. */
+const CACHE_TTL_MS = 20_000;
+let cachedResponse: ReturningStudentsResponse | null = null;
+let cachedAt = 0;
+
+function readFreshCache(): ReturningStudentsResponse | null {
+  return cachedResponse !== null && Date.now() - cachedAt < CACHE_TTL_MS ? cachedResponse : null;
+}
+
 /**
  * "Welcome Back": a slow-rotating spotlight of students returning to campus after a meaningful
  * absence (backend/src/services/returningStudents.ts - never fabricated, only students whose
  * gap since their last visit was confidently measured from real session history are ever shown
- * here). For TV mode; a fresh instance refetches each time TV mode's rotation cycles back here.
+ * here). For TV mode; a fresh instance refetches each time TV mode's rotation cycles back here,
+ * memoized briefly (see CACHE_TTL_MS above) so that refetch doesn't reintroduce a loading flash.
  */
 @Component({
   selector: 'app-returning-students',
   standalone: true,
-  imports: [AvatarComponent, EmptyStateComponent],
+  imports: [AvatarComponent, EmptyStateComponent, LoadingSkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="returning">
       @if (loading()) {
-        <app-empty-state title="Checking who's back on campus…" />
+        <div class="returning__skeleton" aria-busy="true" aria-label="Loading returning students">
+          <div class="returning__summary">
+            @for (i of [1, 2, 3]; track i) {
+              <app-loading-skeleton height="52px" radius="var(--radius-md)" />
+            }
+          </div>
+          <div class="skeleton-spotlight">
+            <app-loading-skeleton height="140px" width="140px" radius="50%" />
+            <app-loading-skeleton height="1.5rem" width="60%" radius="var(--radius-sm)" />
+            <app-loading-skeleton height="1rem" width="40%" radius="var(--radius-sm)" />
+          </div>
+        </div>
       } @else if (spotlight().length === 0) {
         <app-empty-state title="No returning students during this period." />
       } @else {
@@ -91,6 +118,21 @@ const ROTATION_MS = 9000;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: var(--space-3);
       width: 100%;
+    }
+
+    .returning__skeleton {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-5);
+      width: 100%;
+    }
+
+    .skeleton-spotlight {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
     }
 
     .stat {
@@ -204,8 +246,12 @@ export class ReturningStudentsComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly tvMode = inject(TvModeService);
 
-  protected readonly loading = signal(true);
-  protected readonly data = signal<ReturningStudentsResponse | null>(null);
+  private readonly initialCache = readFreshCache();
+
+  /** Seeded from the memoized cache when fresh, so a remount within the TTL window renders the
+   * real spotlight immediately instead of flashing back to the loading skeleton. */
+  protected readonly loading = signal(this.initialCache === null);
+  protected readonly data = signal<ReturningStudentsResponse | null>(this.initialCache);
   protected readonly activeIndex = signal(0);
 
   /** The `size` avatar input renders as an inline pixel style, so a CSS-only
@@ -228,6 +274,8 @@ export class ReturningStudentsComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (envelope) => {
+          cachedResponse = envelope.data;
+          cachedAt = Date.now();
           this.data.set(envelope.data);
           this.loading.set(false);
         },

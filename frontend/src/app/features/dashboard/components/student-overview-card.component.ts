@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
+import { ThemeService } from '../../../core/services/theme.service';
+import { chartAxisColors } from '../../../shared/utils/chart-theme.util';
 import { CommunitySplitChartComponent } from './community-split-chart.component';
 
 const TOTAL_COLOR = '#4cc9f0';
@@ -18,7 +20,7 @@ const ACTIVE_COLOR = '#34e2c4';
       <h3 class="overview-card__title">Student Overview</h3>
 
       <div class="overview-card__bar">
-        <canvas baseChart type="bar" role="img" [attr.aria-label]="barSummary()" [data]="barData()" [options]="barOptions"></canvas>
+        <canvas baseChart type="bar" role="img" [attr.aria-label]="barSummary()" [data]="barData()" [options]="barOptions()"></canvas>
       </div>
 
       <app-community-split-chart [totalStudents]="totalStudents()" [activeStudents]="activeStudents()" />
@@ -54,6 +56,8 @@ const ACTIVE_COLOR = '#34e2c4';
   `,
 })
 export class StudentOverviewCardComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly totalStudents = input.required<number>();
   readonly activeStudents = input.required<number>();
 
@@ -69,19 +73,22 @@ export class StudentOverviewCardComponent {
     ],
   }));
 
-  protected readonly barOptions: ChartConfiguration<'bar'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 400 },
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${Number(ctx.parsed.y).toLocaleString()}` } },
-    },
-    scales: {
-      x: { ticks: { color: '#9aabb5' }, grid: { display: false } },
-      y: { beginAtZero: true, ticks: { color: '#9aabb5', precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
-    },
-  };
+  protected readonly barOptions = computed<ChartConfiguration<'bar'>['options']>(() => {
+    const { tick, grid } = chartAxisColors(this.theme.isLight());
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${Number(ctx.parsed.y).toLocaleString()}` } },
+      },
+      scales: {
+        x: { ticks: { color: tick }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+      },
+    };
+  });
 
   protected readonly barSummary = computed(
     () => `${this.totalStudents().toLocaleString()} total students, ${this.activeStudents().toLocaleString()} active in Common Core.`,

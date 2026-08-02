@@ -63,6 +63,19 @@
         <button mat-icon-button type="button" class="sidebar__action" matTooltip="Full screen" matTooltipPosition="right" aria-label="Toggle full screen" (click)="toggleFullscreen()">
           <mat-icon>{{ fullscreenActive() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
         </button>
+
+        <button
+          mat-icon-button
+          type="button"
+          class="sidebar__action"
+          [matTooltip]="theme.isLight() ? 'Switch to dark mode' : 'Switch to light mode'"
+          matTooltipPosition="right"
+          [attr.aria-label]="theme.isLight() ? 'Switch to dark mode' : 'Switch to light mode'"
+          [attr.aria-pressed]="theme.isLight()"
+          (click)="toggleTheme()"
+        >
+          <mat-icon>{{ theme.isLight() ? 'dark_mode' : 'light_mode' }}</mat-icon>
+        </button>
       </div>
 
       <div class="sidebar__spacer"></div>

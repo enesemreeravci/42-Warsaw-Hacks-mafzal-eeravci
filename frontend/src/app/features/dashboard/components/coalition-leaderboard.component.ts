@@ -3,9 +3,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import type { CoalitionStanding } from '../../../core/models/api.models';
+import { ThemeService } from '../../../core/services/theme.service';
 import { TvModeService } from '../../../core/services/tv-mode.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
+import { chartSegmentBorderColor } from '../../../shared/utils/chart-theme.util';
 import { CoalitionFlagComponent } from './coalition-flag.component';
 
 const FALLBACK_COLOR = '#34e2c4';
@@ -42,6 +44,7 @@ interface CoalitionCard {
             @if (leader(); as leader) {
               <div class="leaderboard__center">
                 <app-avatar
+                  class="leaderboard__center-avatar"
                   [imageUrl]="leader.standing.topContributor?.imageUrl ?? null"
                   [name]="leader.standing.topContributor?.displayName ?? leader.standing.name"
                   [size]="leaderAvatarSize()"
@@ -188,6 +191,21 @@ interface CoalitionCard {
         opacity: 1;
         transform: scale(1);
       }
+    }
+
+    .leaderboard__center-avatar {
+      display: inline-flex;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .leaderboard__center-avatar {
+        animation: leaderboard-avatar-pulse 2.6s ease-in-out infinite;
+      }
+    }
+
+    @keyframes leaderboard-avatar-pulse {
+      0%, 100% { transform: scale(0.95); }
+      50% { transform: scale(1.08); }
     }
 
     .leaderboard__center-name {
@@ -414,6 +432,7 @@ export class CoalitionLeaderboardComponent {
   protected readonly FALLBACK_COLOR = FALLBACK_COLOR;
 
   private readonly tvMode = inject(TvModeService);
+  private readonly theme = inject(ThemeService);
   /** The `size` avatar input renders as an inline pixel style, so a CSS-only
    * `:host-context(.dashboard--tv)` override can't reach it - this picks the TV-scaled size directly. */
   protected readonly leaderAvatarSize = computed(() => (this.tvMode.enabled() ? 220 : 168));
@@ -439,7 +458,7 @@ export class CoalitionLeaderboardComponent {
         {
           data: entries.map((e) => Math.max(e.score, 0)),
           backgroundColor: entries.map((e) => e.color ?? FALLBACK_COLOR),
-          borderColor: 'rgba(6, 8, 10, 0.6)',
+          borderColor: chartSegmentBorderColor(this.theme.isLight(), 0.6),
           borderWidth: 2,
           hoverOffset: 12,
         },

@@ -10,3 +10,11 @@ export function formatWarsawTime(iso: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return 'Unavailable';
   return new Intl.DateTimeFormat('en-GB', { timeZone: WARSAW_TIME_ZONE, hour: '2-digit', minute: '2-digit' }).format(date);
 }
+
+/** Formats an ISO timestamp as a short date, e.g. "28 Jul", in Europe/Warsaw. */
+export function formatWarsawDate(iso: string | null | undefined): string {
+  if (!iso) return 'Unavailable';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Unavailable';
+  return new Intl.DateTimeFormat('en-GB', { timeZone: WARSAW_TIME_ZONE, day: '2-digit', month: 'short' }).format(date);
+}

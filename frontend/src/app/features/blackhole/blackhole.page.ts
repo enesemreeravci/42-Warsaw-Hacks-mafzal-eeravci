@@ -470,7 +470,7 @@ const WINDOW_OPTIONS = [7, 14, 30, 60] as const;
       gap: var(--space-3);
       padding: var(--space-3);
       border-radius: var(--radius-md);
-      background: var(--status-bg, rgba(255,255,255,0.03));
+      background: var(--status-bg, var(--surface-tint-soft));
       border: 1px solid var(--status-color, transparent);
       border-left-width: 4px;
     }

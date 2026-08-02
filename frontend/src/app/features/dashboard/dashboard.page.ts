@@ -29,7 +29,6 @@ import { TranscendenceCompletedShowcaseComponent } from './components/transcende
 import { UpcomingEventsComponent } from './components/upcoming-events.component';
 import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
 import { WeeklyContributorsLeaderboardComponent } from './components/weekly-contributors-leaderboard.component';
-import { WeeklyTopCoalitionsComponent } from './components/weekly-top-coalitions.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
 const NARRATOR_ROTATION_MS = 6500;
@@ -40,7 +39,6 @@ const NARRATOR_ROTATION_MS = 6500;
 const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
   { id: 'analytics-students', color: '#4cc9f0', text: 'Total vs. active Common Core students, at a glance.' },
   { id: 'analytics-projects', color: '#ffb020', text: 'Enrolled projects and completion activity over the last 7 and 30 days.' },
-  { id: 'analytics-community', color: '#be2ad1', text: "The community split, and the campus's average level." },
   { id: 'analytics-coalition', color: '#38e19a', text: "Which coalition's pulling ahead this week." },
   { id: 'celebration', color: '#ffb020', text: 'Freshly validated completions show up here first.' },
   { id: 'trend', color: '#16f0a6', text: 'Validation activity over time - switch the range above to zoom.' },
@@ -49,6 +47,8 @@ const DASHBOARD_NARRATOR_CUES: NarratorCue[] = [
   { id: 'completed', color: '#38e19a', text: 'Top students ranked by validated projects.' },
   { id: 'weekly-campus-time', color: '#4cc9f0', text: 'These students spent the most time working from campus this week.' },
   { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
+  { id: 'night-owls', color: '#be2ad1', text: 'Who was on campus deepest into the night this week.' },
+  { id: 'early-birds', color: '#4cc9f0', text: 'Who showed up earliest on campus this week.' },
   { id: 'events', color: '#ffb020', text: "What's coming up next on campus." },
 ];
 
@@ -68,7 +68,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'weekly-sessions', color: '#ffb020', text: 'These students started the most cluster sessions this week.' },
   { id: 'night-owls', color: '#be2ad1', text: 'Who was on campus deepest into the night this week.' },
   { id: 'early-birds', color: '#4cc9f0', text: 'Who showed up earliest on campus this week.' },
-  { id: 'weekly-top-coalitions', color: '#38e19a', text: "Which coalition is climbing fastest this week." },
   { id: 'cluster-occupancy', color: '#4cc9f0', text: "Live seat occupancy across every cluster on campus." },
   { id: 'evaluation-heatmap', color: '#16f0a6', text: 'When evaluations actually happen, by day and hour.' },
   { id: 'returning-students', color: '#ffb020', text: 'Welcoming back students who returned after time away.' },
@@ -104,7 +103,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     NarratorRobotComponent,
     NarratorTargetDirective,
     WeeklyCampusActivityBoardComponent,
-    WeeklyTopCoalitionsComponent,
     WeeklyContributorsLeaderboardComponent,
     UpcomingEventsComponent,
   ],

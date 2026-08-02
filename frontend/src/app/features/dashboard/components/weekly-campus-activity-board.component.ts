@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import type { WeeklyActivityStudent, WeeklyCampusActivityResponse } from '../../../core/models/api.models';
+import { ThemeService } from '../../../core/services/theme.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
+import { chartSegmentBorderColor } from '../../../shared/utils/chart-theme.util';
 import { formatMinutesAsHoursAndMinutes, formatWarsawDateRange, formatWarsawTime } from '../weekly-campus-activity.utils';
 
 export type WeeklyActivityMetric = 'time' | 'sessions' | 'nightOwls' | 'earlyBirds';
@@ -48,8 +50,9 @@ interface PodiumSlot {
 
 type BoardState = 'loading' | 'error' | 'empty' | 'ready';
 
-const VISIBLE_COUNT = 10;
-const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38e19a', '#16f0a6', '#ffb020', '#ff5470', '#52bdff'];
+/** Top 5 everywhere - dashboard and TV mode alike. */
+const VISIBLE_COUNT = 5;
+const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
 @Component({
   selector: 'app-weekly-campus-activity-board',
@@ -142,7 +145,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
           @if (listEntries().length > 0) {
             <div class="board__rest">
               <div class="board__rest-head">
-                <span>#</span>
+                <span>Rank</span>
                 <span></span>
                 <span>Name</span>
                 <span>{{ rankedEntries()[0]?.primaryLabel }}</span>
@@ -212,13 +215,13 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
       font-weight: 700;
     }
 
-    /* Main content: podium | overview ─────────────────────────────
-     * Podium sits in the wide track first (left); the donut/overview card is placed in the
-     * narrower track second, via the CSS "order" property, so it reads as shifted toward the
-     * right side of the card rather than anchored at the far left. */
+    /* Main content: overview | podium ───────────────────────────────
+     * The chart/donut sits in the narrower track first (left); the podium (avatars + ranking
+     * list) is placed in the wide track second, via the CSS "order" property, so the graphic
+     * reads as anchored on the left with the student ranking on the right. */
     .board__content {
       display: grid;
-      grid-template-columns: 1fr minmax(180px, 240px);
+      grid-template-columns: minmax(180px, 240px) 1fr;
       gap: var(--space-5);
       align-items: center;
       flex: 1;
@@ -226,7 +229,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
 
     /* Overview: donut chart + summary stats ─────────────────────── */
     .board__overview {
-      order: 2;
+      order: 1;
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
@@ -304,8 +307,8 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
       align-items: baseline;
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.055);
+      background: var(--surface-tint-soft);
+      border: 1px solid var(--surface-tint-strong);
     }
 
     .summary-stat__value {
@@ -324,7 +327,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
 
     /* Podium ──────────────────────────────────────────────────────── */
     .board__podium {
-      order: 1;
+      order: 2;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -484,9 +487,11 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
 
     /* TV mode — the donut is far too small at the default 168px on a big screen; give it real
      * presence, matching the enlarged podium/avatar sizing around it. The overview column has to
-     * widen too, or .board__content's grid track would just clip the bigger chart back down. */
+     * widen too, or .board__content's grid track would just clip the bigger chart back down.
+     * (Chart-left/podium-right ordering is now the base layout above, shared by dashboard and TV
+     * alike, so no order override is needed here anymore.) */
     :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; }
-    :host-context(.dashboard--tv) .board__content { grid-template-columns: 1fr minmax(180px, 360px); }
+    :host-context(.dashboard--tv) .board__content { grid-template-columns: minmax(180px, 360px) 1fr; }
 
     /* Ranks 4+ list ─────────────────────────────────────────────── */
     .board__rest {
@@ -524,11 +529,11 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
     }
 
     .board__rest-row:not(:last-child) {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid var(--surface-tint-mild);
     }
 
     .board__rest-row:hover {
-      background: rgba(255, 255, 255, 0.025);
+      background: var(--surface-tint-faint);
     }
 
     .board__rest-rank {
@@ -617,6 +622,8 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38
   `,
 })
 export class WeeklyCampusActivityBoardComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly activity = input<WeeklyCampusActivityResponse | null>(null);
   readonly loadError = input<string | null>(null);
   readonly metric = input.required<WeeklyActivityMetric>();
@@ -714,7 +721,7 @@ export class WeeklyCampusActivityBoardComponent {
         {
           data: entries.map((e) => (timePrimary ? e.student.totalMinutes : e.student.sessionCount)),
           backgroundColor: entries.map((e) => e.color),
-          borderColor: 'rgba(6, 8, 10, 0.7)',
+          borderColor: chartSegmentBorderColor(this.theme.isLight(), 0.7),
           borderWidth: 2,
           hoverOffset: 8,
         },

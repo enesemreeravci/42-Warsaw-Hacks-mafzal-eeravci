@@ -1,10 +1,14 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
 
 const PARTICLES_PER_BURST = 22;
 const COLORS = ['#34e2c4', '#ffb020', '#4cc9f0', '#be2ad1', '#38e19a', '#ff5470', '#ffd700'];
 /** How far apart (seconds) each successive burst fires, so they read as a sequence of
  * fireworks going off rather than one simultaneous flash. */
 const BURST_STAGGER_SEC = 0.7;
+/** With 5 bursts at BURST_STAGGER_SEC apart plus each particle's own ~1.1-1.7s flight, the whole
+ * sequence takes roughly this long - the `continuous` loop restarts on this cadence so a new
+ * round of bursts kicks off right as the last one finishes, instead of stalling or overlapping. */
+const CYCLE_DURATION_SEC = 5.5;
 
 interface Particle {
   txPx: number;
@@ -36,11 +40,12 @@ function buildBurst(leftPct: number, topPct: number, order: number, seed: number
 
 /**
  * Reusable celebratory fireworks overlay: several radial particle bursts at staggered screen
- * positions/times, playing once (not looped) - a fresh instance replays it every time, matching
- * how the rest of this codebase's TV sections naturally replay their entrance animations on
- * remount (Angular's `@switch` destroys/recreates each case). Purely decorative
- * (`aria-hidden`), CSS-only, and skipped entirely under `prefers-reduced-motion: reduce`. Drop
- * into any component that wants a one-shot celebration moment.
+ * positions/times. By default it plays once (not looped) - a fresh instance replays it every
+ * time, matching how the rest of this codebase's TV sections naturally replay their entrance
+ * animations on remount (Angular's `@switch` destroys/recreates each case). Pass `[continuous]`
+ * to keep it firing new rounds of bursts for as long as the component stays mounted, for sections
+ * that stay on screen a while and shouldn't fizzle out after one round. Purely decorative
+ * (`aria-hidden`), CSS-driven, and skipped entirely under `prefers-reduced-motion: reduce`.
  */
 @Component({
   selector: 'app-fireworks-overlay',
@@ -48,7 +53,7 @@ function buildBurst(leftPct: number, topPct: number, order: number, seed: number
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="fireworks" aria-hidden="true">
-      @for (burst of bursts; track $index) {
+      @for (burst of bursts; track $index + '-' + cycle()) {
         <div class="fireworks__burst" [style.left.%]="burst.leftPct" [style.top.%]="burst.topPct" [style.--burst-delay.s]="burst.delaySec">
           @for (particle of burst.particles; track $index) {
             <span
@@ -104,6 +109,9 @@ function buildBurst(leftPct: number, topPct: number, order: number, seed: number
   `,
 })
 export class FireworksOverlayComponent {
+  /** When true, keeps firing new rounds of bursts for as long as this component stays mounted. */
+  readonly continuous = input(false);
+
   protected readonly bursts: Burst[] = [
     buildBurst(22, 28, 0, 0),
     buildBurst(76, 22, 1, 4),
@@ -111,4 +119,35 @@ export class FireworksOverlayComponent {
     buildBurst(64, 62, 3, 12),
     buildBurst(30, 60, 4, 16),
   ];
+
+  /** Bumped every CYCLE_DURATION_SEC while `continuous` is on, folded into the burst `@for`
+   * track so Angular tears down and recreates the burst elements each round - which is what
+   * actually restarts their one-shot CSS animations, the same "fresh instance replays" trick
+   * used elsewhere in this codebase (see RobotAchievementShowcaseComponent's falling batches). */
+  protected readonly cycle = signal(0);
+
+  private readonly destroyRef = inject(DestroyRef);
+  private loopTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    effect(() => {
+      if (this.continuous()) {
+        this.startLoop();
+      } else {
+        this.stopLoop();
+      }
+    });
+    this.destroyRef.onDestroy(() => this.stopLoop());
+  }
+
+  private startLoop(): void {
+    if (this.loopTimer !== null) return;
+    this.loopTimer = setInterval(() => this.cycle.update((c) => c + 1), CYCLE_DURATION_SEC * 1000);
+  }
+
+  private stopLoop(): void {
+    if (this.loopTimer === null) return;
+    clearInterval(this.loopTimer);
+    this.loopTimer = null;
+  }
 }

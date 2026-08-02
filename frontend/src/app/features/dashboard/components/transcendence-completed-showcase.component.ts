@@ -3,10 +3,10 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 import { TRANSCENDENCE_PICTURES } from '../transcendence-pictures.manifest';
 import { FireworksOverlayComponent } from './fireworks-overlay.component';
 
-/** Cap how many staggered entrances play at once, kept a multiple of the 3-per-row grid so the
+/** Cap how many staggered entrances play at once, kept a multiple of the 4-per-row grid so the
  * last row is never left partially empty - beyond this the per-image delay would also push the
- * last photos in well past the section's on-screen dwell time. */
-const MAX_DISPLAYED = 12;
+ * last photos in well past the section's on-screen dwell time. 4x4 = 16 tiles. */
+const MAX_DISPLAYED = 16;
 const STAGGER_STEP_MS = 140;
 
 interface ShowcasePicture {
@@ -43,7 +43,7 @@ function altFromFilename(url: string): string {
           description="Drop images into frontend/public/pictures and they'll show up here automatically."
         />
       } @else {
-        <app-fireworks-overlay />
+        <app-fireworks-overlay [continuous]="true" />
         <div class="transcendence__grid">
           @for (picture of pictures(); track picture.url) {
             <div class="transcendence__tile" [style.--delay.ms]="picture.delayMs">
@@ -68,15 +68,15 @@ function altFromFilename(url: string): string {
       background: radial-gradient(circle at 50% 0%, rgba(52, 226, 196, 0.08), transparent 60%), var(--color-bg-elevated);
     }
 
-    // Fixed 3-per-row (not auto-fill) so photos are consistently large regardless of viewport
-    // width, and the grid fills the full-screen TV stage rather than shrinking tiles to fit
-    // more columns.
+    // Fixed 4x4 (not auto-fill) so photos are consistently large regardless of viewport width,
+    // and the grid fills the full-screen TV stage rather than shrinking tiles to fit more
+    // columns.
     .transcendence__grid {
       flex: 1;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-auto-rows: 1fr;
-      gap: var(--space-5);
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: var(--space-4);
       overflow: hidden;
     }
 

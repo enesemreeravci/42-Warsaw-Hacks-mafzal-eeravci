@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import type { CompletionTrendPoint } from '../../../core/models/api.models';
+import { ThemeService } from '../../../core/services/theme.service';
+import { chartAxisColors } from '../../../shared/utils/chart-theme.util';
 
 @Component({
   selector: 'app-completion-trend-chart',
@@ -15,7 +17,7 @@ import type { CompletionTrendPoint } from '../../../core/models/api.models';
         role="img"
         [attr.aria-label]="textSummary()"
         [data]="chartData()"
-        [options]="chartOptions"
+        [options]="chartOptions()"
         type="line"
       ></canvas>
       <p class="visually-hidden">{{ textSummary() }}</p>
@@ -36,6 +38,8 @@ import type { CompletionTrendPoint } from '../../../core/models/api.models';
   `,
 })
 export class CompletionTrendChartComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly points = input.required<CompletionTrendPoint[]>();
 
   readonly chartData = computed<ChartConfiguration<'line'>['data']>(() => ({
@@ -61,16 +65,19 @@ export class CompletionTrendChartComponent {
     return `Daily validated completions over ${points.length} days. Total ${total}, peak ${peak.count} on ${peak.date}.`;
   });
 
-  protected readonly chartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 300 },
-    scales: {
-      x: { ticks: { color: '#9aabb5' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-      y: { beginAtZero: true, ticks: { color: '#9aabb5', precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
-    },
-    plugins: {
-      legend: { display: false },
-    },
-  };
+  protected readonly chartOptions = computed<ChartConfiguration<'line'>['options']>(() => {
+    const { tick, grid } = chartAxisColors(this.theme.isLight());
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        x: { ticks: { color: tick }, grid: { color: grid } },
+        y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+      },
+      plugins: {
+        legend: { display: false },
+      },
+    };
+  });
 }

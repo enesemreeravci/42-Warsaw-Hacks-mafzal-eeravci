@@ -132,6 +132,35 @@
         </div>
       </section>
 
+      <section class="section section--weekly-activity" aria-label="Weekly campus activity by time of day">
+        <div
+          class="panel"
+          [appNarratorTarget]="'night-owls'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'night-owls'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
+          <app-weekly-campus-activity-board
+            title="Night Owls — Last 7 Days"
+            metric="nightOwls"
+            [activity]="store.data().weeklyCampusActivity"
+            [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+          />
+        </div>
+        <div
+          class="panel"
+          [appNarratorTarget]="'early-birds'"
+          [class.narrator-highlight]="activeNarratorCue()?.id === 'early-birds'"
+          [style.--highlight-color]="activeNarratorCue()?.color"
+        >
+          <app-weekly-campus-activity-board
+            title="Early Birds — Last 7 Days"
+            metric="earlyBirds"
+            [activity]="store.data().weeklyCampusActivity"
+            [loadError]="store.partialErrors()['weeklyCampusActivity'] ?? null"
+          />
+        </div>
+      </section>
+
       <section class="section" aria-label="Upcoming events">
         <div
           class="panel"
@@ -200,24 +229,21 @@
               />
             }
             @case (9) {
-              <app-weekly-top-coalitions [standings]="store.data().coalitions" />
-            }
-            @case (10) {
               <app-cluster-occupancy-map [occupancy]="store.data().clusterOccupancy" />
             }
-            @case (11) {
+            @case (10) {
               <app-evaluation-heatmap />
             }
-            @case (12) {
+            @case (11) {
               <app-returning-students />
             }
-            @case (13) {
+            @case (12) {
               <app-weekly-contributors-leaderboard />
             }
-            @case (14) {
+            @case (13) {
               <app-transcendence-completed-showcase />
             }
-            @case (15) {
+            @case (14) {
               <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
             }
           }

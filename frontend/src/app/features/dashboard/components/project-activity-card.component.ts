@@ -1,7 +1,9 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
+import { ThemeService } from '../../../core/services/theme.service';
+import { chartAxisColors } from '../../../shared/utils/chart-theme.util';
 
 /** Analytics card 2: enrolled-project count and completion rate as headline stats, plus a
  * 7-day-vs-30-day completions bar so the two windows are easy to compare at a glance. */
@@ -12,7 +14,7 @@ import { BaseChartDirective } from 'ng2-charts';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <article class="activity-card">
-      <h3 class="activity-card__title">Project Activity</h3>
+      <h3 class="activity-card__title">Enrolled Projects</h3>
 
       <div class="activity-card__stats">
         <div class="activity-stat">
@@ -26,7 +28,7 @@ import { BaseChartDirective } from 'ng2-charts';
       </div>
 
       <div class="activity-card__chart">
-        <canvas baseChart type="bar" role="img" [attr.aria-label]="chartSummary()" [data]="periodData()" [options]="periodOptions"></canvas>
+        <canvas baseChart type="bar" role="img" [attr.aria-label]="chartSummary()" [data]="periodData()" [options]="periodOptions()"></canvas>
       </div>
     </article>
   `,
@@ -98,6 +100,8 @@ import { BaseChartDirective } from 'ng2-charts';
   `,
 })
 export class ProjectActivityCardComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly totalEnrolledProjects = input.required<number>();
   readonly completionsLast7Days = input.required<number>();
   readonly completionsLast30Days = input.required<number>();
@@ -115,20 +119,23 @@ export class ProjectActivityCardComponent {
     ],
   }));
 
-  protected readonly periodOptions: ChartConfiguration<'bar'>['options'] = {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 400 },
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${Number(ctx.parsed.x).toLocaleString()}` } },
-    },
-    scales: {
-      x: { beginAtZero: true, ticks: { color: '#9aabb5', precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
-      y: { ticks: { color: '#9aabb5' }, grid: { display: false } },
-    },
-  };
+  protected readonly periodOptions = computed<ChartConfiguration<'bar'>['options']>(() => {
+    const { tick, grid } = chartAxisColors(this.theme.isLight());
+    return {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${Number(ctx.parsed.x).toLocaleString()}` } },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+        y: { ticks: { color: tick }, grid: { display: false } },
+      },
+    };
+  });
 
   protected readonly chartSummary = computed(
     () => `${this.completionsLast7Days()} completions in the last 7 days, ${this.completionsLast30Days()} in the last 30 days.`,

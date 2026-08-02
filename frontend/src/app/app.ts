@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { DashboardStore } from './core/services/dashboard-store.service';
+import { ThemeService } from './core/services/theme.service';
 import { TvModeService } from './core/services/tv-mode.service';
 import { AchievementTakeoverOverlayComponent } from './features/dashboard/components/achievement-takeover-overlay.component';
 
@@ -31,6 +32,7 @@ import { AchievementTakeoverOverlayComponent } from './features/dashboard/compon
 export class App {
   protected readonly store = inject(DashboardStore);
   protected readonly tvMode = inject(TvModeService);
+  protected readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -79,6 +81,10 @@ export class App {
 
   protected toggleTvMode(): void {
     this.tvMode.toggle();
+  }
+
+  protected toggleTheme(): void {
+    this.theme.toggle();
   }
 
   protected async toggleFullscreen(): Promise<void> {

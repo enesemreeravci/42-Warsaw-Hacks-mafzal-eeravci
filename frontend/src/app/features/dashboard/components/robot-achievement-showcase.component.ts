@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import type { AchievementEntry } from '../../../core/models/api.models';
+import { formatWarsawDate } from '../../../shared/utils/warsaw-time.util';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { FireworksOverlayComponent } from './fireworks-overlay.component';
@@ -20,6 +21,7 @@ interface FallingPicture {
   leftPct: number;
   delayMs: number;
   durationMs: number;
+  dateUnlockedLabel: string;
 }
 
 /** Builds a batch of 3-5 falling pictures starting at `startIndex` in `list`, wrapping around
@@ -37,6 +39,7 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
       leftPct: ((i + 1) * 100) / (count + 1),
       delayMs: i * FALL_STAGGER_MS,
       durationMs: FALL_DURATION_MS + (i % 3) * 200,
+      dateUnlockedLabel: formatWarsawDate(achievement.completedAt),
     };
   });
 }
@@ -74,7 +77,10 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
                 <app-avatar [imageUrl]="item.achievement.imageUrl" [name]="item.achievement.displayName" [size]="96" />
                 <span class="falling-picture__name">{{ item.achievement.displayName }}</span>
                 <span class="falling-picture__project">{{ item.achievement.projectName }}</span>
-                <span class="falling-picture__score">{{ item.achievement.finalMark ?? '—' }} pts</span>
+                <span class="falling-picture__meta">
+                  <span class="falling-picture__date">{{ item.dateUnlockedLabel }}</span>
+                  <span class="falling-picture__score">{{ item.achievement.finalMark ?? '—' }} pts</span>
+                </span>
               </div>
             }
           </div>
@@ -158,6 +164,18 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
       white-space: nowrap;
       font-size: 0.75rem;
       color: var(--color-text-secondary);
+    }
+
+    .falling-picture__meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .falling-picture__date {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
     }
 
     .falling-picture__score {

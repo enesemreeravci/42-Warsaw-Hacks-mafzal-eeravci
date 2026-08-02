@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import type { ProjectMetric } from '../../../core/models/api.models';
+import { ThemeService } from '../../../core/services/theme.service';
+import { chartSegmentBorderColor } from '../../../shared/utils/chart-theme.util';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const SUCCESS_COLOR = '#38e19a';
@@ -132,10 +134,13 @@ interface ProjectCard {
   `,
 })
 export class TopProjectsListComponent {
+  private readonly theme = inject(ThemeService);
+
   readonly projects = input.required<ProjectMetric[]>();
 
-  protected readonly cards = computed<ProjectCard[]>(() =>
-    this.projects().map((metric, index) => {
+  protected readonly cards = computed<ProjectCard[]>(() => {
+    const borderColor = chartSegmentBorderColor(this.theme.isLight(), 0.6);
+    return this.projects().map((metric, index) => {
       const successPct = Math.round(metric.successRate);
       return {
         metric,
@@ -147,14 +152,14 @@ export class TopProjectsListComponent {
             {
               data: [metric.successfulCompletionCount, metric.failedCompletionCount],
               backgroundColor: [SUCCESS_COLOR, FAIL_COLOR],
-              borderColor: 'rgba(6, 8, 10, 0.6)',
+              borderColor,
               borderWidth: 2,
             },
           ],
         },
       };
-    }),
-  );
+    });
+  });
 
   protected readonly chartOptions: ChartConfiguration<'doughnut'>['options'] = {
     responsive: true,
