@@ -35,8 +35,26 @@
   padding: var(--space-2);
 }
 
+.sidebar__brand {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-4);
+}
+
+.sidebar__brand-logo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
 .sidebar__nav {
-  padding-top: var(--space-6);
+  padding-top: var(--space-3);
+}
+
+:host-context(html[data-theme='light']) .sidebar__brand-logo {
+  filter: brightness(0);
 }
 
 .sidebar__divider {
@@ -77,6 +95,11 @@
   background: rgba(52, 226, 196, 0.1);
 }
 
+.sidebar__action--auto {
+  color: var(--color-accent);
+  background: rgba(52, 226, 196, 0.1);
+}
+
 .sidebar__status {
   display: flex;
   align-items: center;
@@ -106,15 +129,46 @@
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-6) var(--space-3) calc(var(--space-6) + 64px);
   border-bottom: 1px solid var(--color-border);
   background: var(--nav-bg);
   backdrop-filter: blur(10px);
-  transition: background var(--transition-standard), border-color var(--transition-standard);
+  transition:
+    background var(--transition-standard),
+    border-color var(--transition-standard),
+    opacity 220ms ease,
+    max-height 220ms ease,
+    padding-top 220ms ease,
+    padding-bottom 220ms ease;
   position: sticky;
   top: 0;
   z-index: 20;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  // The header has nothing else in it now that the mode toggle lives in the sidebar - centering
+  // via auto margins (rather than justify-content on .app-header) keeps this working regardless
+  // of whether a sibling ever gets added back on the other side.
+  margin: 0 auto;
+}
+
+// Circular badge treatment (like the student avatars) for the square "42" glyph mark - the
+// wordmark logos this used to render (42-Warsaw-Black/White.png) are wide, non-square, and crop
+// badly under a border-radius, which is why this now points at the square glyph-only asset
+// instead (see app.ts logoSrc).
+.app-header__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-bg-elevated);
+  border: 2px solid var(--color-border-strong);
+  flex-shrink: 0;
 }
 
 .app-header__title {
@@ -162,6 +216,12 @@
   font-size: 1rem;
 }
 
+.tv-bar__logo {
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
+}
+
 .tv-bar__title {
   font-weight: 700;
   color: var(--color-text-secondary);
@@ -186,8 +246,113 @@
   color: var(--color-accent);
 }
 
+/* Mode toggle — a labeled pill switch (not an icon-only button, unlike the rest of the sidebar)
+ * so "Mode: Manual" / "Mode: Auto" is always readable at a glance, not just on hover/tooltip. */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3) 4px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-standard), border-color var(--transition-standard), color var(--transition-standard);
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+}
+
+.mode-toggle__track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  transition: background var(--transition-standard);
+  flex-shrink: 0;
+}
+
+.mode-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-text-primary);
+  transition: transform var(--transition-standard);
+}
+
+.mode-toggle--auto {
+  color: var(--color-accent-strong);
+
+  .mode-toggle__track {
+    background: var(--color-accent);
+  }
+
+  .mode-toggle__thumb {
+    transform: translateX(14px);
+    background: #06080a;
+  }
+}
+
+.mode-toggle--tv {
+  border-color: var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 @media (max-width: 480px) {
   .app-header__title {
     font-size: 0.9rem;
+  }
+}
+
+/* Fullscreen — an immersive "just the dashboard" view: the sidebar and header fade out (kept
+ * hoverable rather than `pointer-events: none`'d away, so hovering where they normally sit still
+ * works even while invisible) and the header additionally collapses its own height so the
+ * content doesn't sit under a dead gap. Hovering the sidebar - or, once revealed, the header
+ * itself - brings both back. Not applied in TV mode, which already has its own always-visible
+ * tv-bar instead of this chrome. Also applied - despite the class name - during Auto mode's
+ * dashboard phase (see app.html's [class.app-shell--fullscreen] binding), for the same
+ * uncluttered look while the page is auto-scrolling through sections on its own. */
+.app-shell--fullscreen {
+  .sidebar {
+    opacity: 0;
+    transition: opacity 220ms ease;
+  }
+
+  .app-header {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    border-bottom-color: transparent;
+  }
+
+  .sidebar:hover,
+  .sidebar:hover ~ .app-header,
+  .app-header:hover {
+    opacity: 1;
+  }
+
+  .sidebar:hover ~ .app-header,
+  .app-header:hover {
+    max-height: 80px;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom-color: var(--color-border);
+  }
+
+  .app-content--with-sidebar {
+    padding-left: var(--space-6);
+    transition: padding-left 220ms ease;
   }
 }

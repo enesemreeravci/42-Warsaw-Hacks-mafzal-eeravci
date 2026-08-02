@@ -94,7 +94,7 @@ function altFromFilename(url: string): string {
     // running edge-to-edge with just a thin hairline around it.
     .transcendence__tile {
       position: relative;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 1 / 1;
       padding: 8px;
       border-radius: var(--radius-lg);
       border: 1px solid var(--glass-border);
@@ -129,7 +129,7 @@ function altFromFilename(url: string): string {
       display: block;
       width: 100%;
       height: 100%;
-      border-radius: calc(var(--radius-lg) - 6px);
+      border-radius: 50%;
       object-fit: cover;
     }
   `,

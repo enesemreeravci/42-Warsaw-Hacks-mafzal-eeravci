@@ -284,7 +284,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     }
 
     .board__chart-total {
-      font-size: 1.35rem;
+      font-size: 1.1rem;
       font-weight: 900;
       color: var(--color-text-primary);
       font-variant-numeric: tabular-nums;
@@ -487,7 +487,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     :host-context(.dashboard--tv) .board__header { align-items: center; }
     :host-context(.dashboard--tv) .board__meta { text-align: center; }
 
-    :host-context(.dashboard--tv) .board__chart-total   { font-size: 2.1rem; }
+    :host-context(.dashboard--tv) .board__chart-total   { font-size: 1.7rem; }
     :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }
     :host-context(.dashboard--tv) .podium-slot--gold .podium-slot__primary { font-size: 2rem; }
 
@@ -759,7 +759,15 @@ export class WeeklyCampusActivityBoardComponent {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` ${ctx.label}: ${ctx.formattedValue}`,
+          // The raw chart value is minutes or a session count, which reads as a meaningless
+          // number on its own (e.g. "3,573") - showing the same already-formatted, unit-labeled
+          // value used everywhere else on the card ("3h 10m" / "24 Sessions") instead.
+          label: (ctx) => {
+            const entry = this.rankedEntries()[ctx.dataIndex];
+            if (!entry) return '';
+            const unit = isTimePrimary(this.metric()) ? '' : ' Sessions';
+            return ` ${entry.student.displayName}: ${entry.primaryValue}${unit}`;
+          },
         },
       },
     },

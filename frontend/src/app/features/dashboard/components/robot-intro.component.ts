@@ -5,7 +5,7 @@ const WELCOME_MESSAGE = `Welcome to 42 Warsaw!
 
 Hello! I'm your tour guide, and I'll walk you through the latest insights and achievements from our campus.
 
-Before we begin, take a moment to appreciate how far you've come. You should be proud of yourself — you're one of the few people who accepted the challenge and made it this far.
+Before we begin, take a moment to appreciate how far you've come. You should be proud of yourself you're one of the few people who accepted the challenge and made it this far.
 
 Now, let's see what I have prepared for you.
 

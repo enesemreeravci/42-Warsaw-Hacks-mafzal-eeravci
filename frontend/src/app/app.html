@@ -1,17 +1,19 @@
-<div class="app-shell" [class.app-shell--tv]="tvMode.enabled()">
+<div
+  class="app-shell"
+  [class.app-shell--tv]="tvMode.enabled()"
+  [class.app-shell--fullscreen]="(fullscreenActive() || autoLoop.isAuto()) && !tvMode.enabled()"
+>
   <div class="visually-hidden" role="status" aria-live="polite">{{ announcement() }}</div>
 
   @if (!tvMode.enabled()) {
     <aside class="sidebar">
+      <div class="sidebar__brand" aria-hidden="true">
+        <img class="sidebar__brand-logo" src="/icons/42_Logo.svg.webp" alt="" loading="lazy" />
+      </div>
+
       <nav class="sidebar__nav" aria-label="Primary">
         <a class="sidebar__link" routerLink="/dashboard" routerLinkActive="active" matTooltip="Dashboard" matTooltipPosition="right" aria-label="Dashboard">
           <mat-icon>dashboard</mat-icon>
-        </a>
-        <a class="sidebar__link" routerLink="/evaluations" routerLinkActive="active" matTooltip="Evaluation Analytics" matTooltipPosition="right" aria-label="Evaluation Analytics">
-          <mat-icon>rate_review</mat-icon>
-        </a>
-        <a class="sidebar__link" routerLink="/blackhole" routerLinkActive="active" matTooltip="Black Hole Status" matTooltipPosition="right" aria-label="Black Hole Status">
-          <mat-icon>dark_mode</mat-icon>
         </a>
         <a class="sidebar__link" routerLink="/about" routerLinkActive="active" matTooltip="About" matTooltipPosition="right" aria-label="About">
           <mat-icon>info</mat-icon>
@@ -56,6 +58,20 @@
           <mat-icon [class.spin]="store.refreshing()">refresh</mat-icon>
         </button>
 
+        <button
+          mat-icon-button
+          type="button"
+          class="sidebar__action"
+          [class.sidebar__action--auto]="autoLoop.isAuto()"
+          [matTooltip]="autoLoop.isAuto() ? 'Auto mode: cycling Dashboard → TV Mode → Dashboard on a loop' : 'Manual mode: no automatic cycling'"
+          matTooltipPosition="right"
+          [attr.aria-label]="autoLoop.isAuto() ? 'Switch to manual mode' : 'Switch to auto mode'"
+          [attr.aria-pressed]="autoLoop.isAuto()"
+          (click)="toggleAutoLoop()"
+        >
+          <mat-icon>{{ autoLoop.isAuto() ? 'loop' : 'touch_app' }}</mat-icon>
+        </button>
+
         <button mat-icon-button type="button" class="sidebar__action" matTooltip="TV mode (T)" matTooltipPosition="right" aria-label="Enter TV mode" (click)="toggleTvMode()">
           <mat-icon>tv</mat-icon>
         </button>
@@ -86,13 +102,31 @@
     </aside>
 
     <header class="app-header">
-      <p class="app-header__title">42 Warsaw Highlights</p>
+      <div class="app-header__brand">
+        <img class="app-header__logo" [src]="logoSrc" alt="" aria-hidden="true" />
+        <p class="app-header__title">42 Warsaw Overview</p>
+      </div>
     </header>
   } @else {
     <div class="tv-bar">
+      <img class="tv-bar__logo" [src]="logoSrc" alt="" aria-hidden="true" />
       <span class="tv-bar__title">42 Warsaw &middot; Learning Progress Insight</span>
       <span class="tv-bar__section">{{ tvMode.currentSectionTitle() }}</span>
       <span class="tv-bar__clock">{{ clockLabel() }}</span>
+
+      <button
+        type="button"
+        class="mode-toggle mode-toggle--tv"
+        [class.mode-toggle--auto]="autoLoop.isAuto()"
+        [matTooltip]="autoLoop.isAuto() ? 'Auto mode: cycling Dashboard → TV Mode → Dashboard on a loop' : 'Manual mode: no automatic cycling'"
+        [attr.aria-label]="autoLoop.isAuto() ? 'Switch to manual mode' : 'Switch to auto mode'"
+        [attr.aria-pressed]="autoLoop.isAuto()"
+        (click)="toggleAutoLoop()"
+      >
+        <span class="mode-toggle__track" aria-hidden="true"><span class="mode-toggle__thumb"></span></span>
+        <span class="mode-toggle__label">Mode: {{ autoLoop.isAuto() ? 'Auto' : 'Manual' }}</span>
+      </button>
+
       <button mat-icon-button type="button" matTooltip="Exit TV mode (T)" aria-label="Exit TV mode" (click)="toggleTvMode()">
         <mat-icon>close_fullscreen</mat-icon>
       </button>

@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonToggleModule, MatButtonToggleChange } from '@angular/material/button-toggle';
 import { filter, timer } from 'rxjs';
+import { AutoLoopService } from '../../core/services/auto-loop.service';
 import { DashboardStore } from '../../core/services/dashboard-store.service';
 import { TvModeService } from '../../core/services/tv-mode.service';
 import { VisibilityService } from '../../core/services/visibility.service';
@@ -31,6 +32,9 @@ import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-a
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
 const NARRATOR_ROTATION_MS = 6500;
+/** Auto mode's dashboard phase: how long each section is held on screen before scrolling to the
+ * next one - 10-15s per view. */
+const AUTO_SCROLL_DWELL_MS = 12_000;
 
 /** Cues for the main (non-TV) dashboard, in the order the narrator cycles through them. Each
  * `id` is matched against an `appNarratorTarget` directive on the corresponding panel in
@@ -110,6 +114,7 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
 export class DashboardPage {
   protected readonly store = inject(DashboardStore);
   protected readonly tvMode = inject(TvModeService);
+  protected readonly autoLoop = inject(AutoLoopService);
   private readonly visibility = inject(VisibilityService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly targetRegistry = inject(NarratorTargetRegistry);
@@ -179,6 +184,20 @@ export class DashboardPage {
       .subscribe(() => this.narratorIndex.update((i) => i + 1));
 
     this.watchMouseIdle();
+
+    // Auto mode's dashboard phase: whenever "auto is on and we're not in TV mode" becomes true -
+    // either because Auto was just switched on, or because AutoLoopService just exited TV mode
+    // after a completed lap - (re)start scrolling through every dashboard section from the top.
+    // The moment either condition flips false (Manual switched back on, or TV mode started), any
+    // pending step is cancelled immediately, per the "freeze on Manual" requirement.
+    effect(() => {
+      if (this.autoLoop.isAuto() && !this.tvMode.enabled()) {
+        this.startAutoScroll();
+      } else {
+        this.stopAutoScroll();
+      }
+    });
+    this.destroyRef.onDestroy(() => this.stopAutoScroll());
   }
 
   private watchMouseIdle(): void {
@@ -213,5 +232,53 @@ export class DashboardPage {
 
   protected retry(): void {
     this.store.refreshNow();
+  }
+
+  private autoScrollTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoScrollIndex = 0;
+
+  /** Scrolls to the top, then advances through every top-level dashboard `.section` one at a
+   * time, dwelling AUTO_SCROLL_DWELL_MS on each. Once the last one has had its turn, hands off to
+   * AutoLoopService to continue the loop into TV mode. Safe to call while already running (e.g.
+   * the driving effect re-firing for an unrelated reason) - always resets to a fresh pass from
+   * the top rather than layering a second timer on top of an existing one. */
+  private startAutoScroll(): void {
+    this.stopAutoScroll();
+    if (typeof window === 'undefined') return;
+
+    this.autoScrollIndex = 0;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.scheduleNextAutoScrollStep();
+  }
+
+  private scheduleNextAutoScrollStep(): void {
+    this.autoScrollTimer = setTimeout(() => {
+      const sections = this.dashboardSectionElements();
+      this.autoScrollIndex += 1;
+
+      if (this.autoScrollIndex >= sections.length) {
+        this.autoLoop.enterTvPhase();
+        return;
+      }
+
+      sections[this.autoScrollIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      this.scheduleNextAutoScrollStep();
+    }, AUTO_SCROLL_DWELL_MS);
+  }
+
+  private stopAutoScroll(): void {
+    if (this.autoScrollTimer === null) return;
+    clearTimeout(this.autoScrollTimer);
+    this.autoScrollTimer = null;
+  }
+
+  /** Every top-level section on the main (non-TV) dashboard, top to bottom - see
+   * dashboard.page.html's `<section class="section" ...>` blocks (Dashboard Analytics, Recently
+   * Completed, Completion Trend + Most Completed Projects, Top by Level + Top by Validated,
+   * Most Campus Time + Most Sessions, Night Owls + Early Birds, Upcoming Events). Queried fresh
+   * each step rather than cached, since it's cheap and avoids the elements ever going stale. */
+  private dashboardSectionElements(): HTMLElement[] {
+    if (typeof document === 'undefined') return [];
+    return Array.from(document.querySelectorAll<HTMLElement>('main.app-content .section'));
   }
 }

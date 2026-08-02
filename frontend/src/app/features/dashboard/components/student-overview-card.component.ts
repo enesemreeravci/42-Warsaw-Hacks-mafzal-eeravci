@@ -7,6 +7,9 @@ import { CommunitySplitChartComponent } from './community-split-chart.component'
 
 const TOTAL_COLOR = '#4cc9f0';
 const ACTIVE_COLOR = '#34e2c4';
+// Matches OTHER_COLOR in community-split-chart.component.ts, so "Other" reads as the same
+// category (same color) in both the bar chart above and the donut legend below.
+const OTHER_COLOR = '#ffb020';
 
 /** Analytics card 1: a bar comparing total vs. active Common Core students, paired with the
  * same ratio as a donut (reusing CommunitySplitChartComponent) directly underneath. */
@@ -61,12 +64,17 @@ export class StudentOverviewCardComponent {
   readonly totalStudents = input.required<number>();
   readonly activeStudents = input.required<number>();
 
+  // Same "Other" definition as CommunitySplitChartComponent.inactiveCount - everyone counted in
+  // totalStudents who isn't in activeStudents, floored at 0 so a temporarily-stale/mismatched
+  // pair of inputs can never render as a negative bar.
+  protected readonly otherStudents = computed(() => Math.max(this.totalStudents() - this.activeStudents(), 0));
+
   protected readonly barData = computed<ChartConfiguration<'bar'>['data']>(() => ({
-    labels: ['Total Students', 'Active Common Core'],
+    labels: ['Total Students', 'Active Common Core', 'Other'],
     datasets: [
       {
-        data: [this.totalStudents(), this.activeStudents()],
-        backgroundColor: [TOTAL_COLOR, ACTIVE_COLOR],
+        data: [this.totalStudents(), this.activeStudents(), this.otherStudents()],
+        backgroundColor: [TOTAL_COLOR, ACTIVE_COLOR, OTHER_COLOR],
         borderRadius: 8,
         maxBarThickness: 56,
       },
@@ -91,6 +99,8 @@ export class StudentOverviewCardComponent {
   });
 
   protected readonly barSummary = computed(
-    () => `${this.totalStudents().toLocaleString()} total students, ${this.activeStudents().toLocaleString()} active in Common Core.`,
+    () =>
+      `${this.totalStudents().toLocaleString()} total students, ${this.activeStudents().toLocaleString()} active in Common Core, ` +
+      `${this.otherStudents().toLocaleString()} other.`,
   );
 }

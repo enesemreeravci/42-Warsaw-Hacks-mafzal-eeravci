@@ -7,6 +7,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
+import { AutoLoopService } from './core/services/auto-loop.service';
 import { DashboardStore } from './core/services/dashboard-store.service';
 import { ThemeService } from './core/services/theme.service';
 import { TvModeService } from './core/services/tv-mode.service';
@@ -33,6 +34,7 @@ export class App {
   protected readonly store = inject(DashboardStore);
   protected readonly tvMode = inject(TvModeService);
   protected readonly theme = inject(ThemeService);
+  protected readonly autoLoop = inject(AutoLoopService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -41,6 +43,11 @@ export class App {
   protected readonly currentUrl = signal('/dashboard');
   protected readonly clockLabel = signal(this.formatClock());
   protected readonly refreshIntervalOptions = [60, 120, 300, 600, 900];
+
+  /** Square "42" glyph badge (opaque white circle once cropped by .app-header__logo's
+   * border-radius) - reads fine over either theme's header background, so unlike the sidebar's
+   * transparent-background mark below it needs no light/dark swap of its own. */
+  protected readonly logoSrc = '/icons/42-logo.png';
 
   /** Single icon-only status indicator standing in for the header's old three badges (warming /
    * stale / reachable) - same priority order the old template used (@if/@else-if: warming, then
@@ -85,6 +92,10 @@ export class App {
 
   protected toggleTheme(): void {
     this.theme.toggle();
+  }
+
+  protected toggleAutoLoop(): void {
+    this.autoLoop.toggle();
   }
 
   protected async toggleFullscreen(): Promise<void> {
