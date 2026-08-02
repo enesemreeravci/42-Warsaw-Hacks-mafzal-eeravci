@@ -3,16 +3,24 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 import { TRANSCENDENCE_PICTURES } from '../transcendence-pictures.manifest';
 import { FireworksOverlayComponent } from './fireworks-overlay.component';
 
-/** Cap how many staggered entrances play at once, kept a multiple of the 4-per-row grid so the
+/** Cap how many staggered entrances play at once, kept a multiple of the 5-per-row grid so the
  * last row is never left partially empty - beyond this the per-image delay would also push the
- * last photos in well past the section's on-screen dwell time. 4x4 = 16 tiles. */
-const MAX_DISPLAYED = 16;
+ * last photos in well past the section's on-screen dwell time. 5x3 = 15 tiles. */
+const MAX_DISPLAYED = 15;
 const STAGGER_STEP_MS = 140;
+
+/** The tile's own fall-in animation (see transcendence-fall below) takes this long - a tile's
+ * firework burst is timed to fire right as it finishes landing, not mid-fall. */
+const FALL_DURATION_MS = 600;
+/** Cycled per tile so neighboring frames don't all glow the exact same color. */
+const GLOW_COLORS = ['#34e2c4', '#4cc9f0', '#be2ad1', '#ffb020', '#38e19a'];
 
 interface ShowcasePicture {
   url: string;
   alt: string;
   delayMs: number;
+  fireworkDelaySec: number;
+  glowColor: string;
 }
 
 function altFromFilename(url: string): string {
@@ -43,11 +51,11 @@ function altFromFilename(url: string): string {
           description="Drop images into frontend/public/pictures and they'll show up here automatically."
         />
       } @else {
-        <app-fireworks-overlay [continuous]="true" />
         <div class="transcendence__grid">
           @for (picture of pictures(); track picture.url) {
-            <div class="transcendence__tile" [style.--delay.ms]="picture.delayMs">
+            <div class="transcendence__tile" [style.--delay.ms]="picture.delayMs" [style.--tile-glow]="picture.glowColor">
               <img class="transcendence__image" [src]="picture.url" [alt]="picture.alt" loading="lazy" />
+              <app-fireworks-overlay variant="tile" [repeatCount]="4" [startDelaySec]="picture.fireworkDelaySec" />
             </div>
           }
         </div>
@@ -68,24 +76,32 @@ function altFromFilename(url: string): string {
       background: radial-gradient(circle at 50% 0%, rgba(52, 226, 196, 0.08), transparent 60%), var(--color-bg-elevated);
     }
 
-    // Fixed 4x4 (not auto-fill) so photos are consistently large regardless of viewport width,
+    // Fixed 5x3 (not auto-fill) so photos are consistently sized regardless of viewport width,
     // and the grid fills the full-screen TV stage rather than shrinking tiles to fit more
-    // columns.
+    // columns. Smaller/more-numerous tiles than before, to leave visible room for each one's
+    // frame (below) instead of the photo filling the entire tile edge-to-edge.
     .transcendence__grid {
       flex: 1;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(3, 1fr);
       gap: var(--space-4);
       overflow: hidden;
     }
 
+    // A modern glassmorphism picture frame: a frosted, translucent mat (blurring whatever's
+    // behind the tile) between a soft glowing border and the photo itself, rather than the image
+    // running edge-to-edge with just a thin hairline around it.
     .transcendence__tile {
+      position: relative;
       aspect-ratio: 4 / 3;
+      padding: 8px;
       border-radius: var(--radius-lg);
-      overflow: hidden;
-      border: 1px solid var(--color-border-strong);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg-elevated);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 26px -6px var(--tile-glow, var(--color-accent-glow));
       opacity: 0;
       transform: translateY(-64px);
     }
@@ -113,16 +129,22 @@ function altFromFilename(url: string): string {
       display: block;
       width: 100%;
       height: 100%;
+      border-radius: calc(var(--radius-lg) - 6px);
       object-fit: cover;
     }
   `,
 })
 export class TranscendenceCompletedShowcaseComponent {
   protected readonly pictures = computed<ShowcasePicture[]>(() =>
-    TRANSCENDENCE_PICTURES.slice(0, MAX_DISPLAYED).map((url, i) => ({
-      url,
-      alt: altFromFilename(url),
-      delayMs: i * STAGGER_STEP_MS,
-    })),
+    TRANSCENDENCE_PICTURES.slice(0, MAX_DISPLAYED).map((url, i) => {
+      const delayMs = i * STAGGER_STEP_MS;
+      return {
+        url,
+        alt: altFromFilename(url),
+        delayMs,
+        fireworkDelaySec: (delayMs + FALL_DURATION_MS) / 1000,
+        glowColor: GLOW_COLORS[i % GLOW_COLORS.length]!,
+      };
+    }),
   );
 }

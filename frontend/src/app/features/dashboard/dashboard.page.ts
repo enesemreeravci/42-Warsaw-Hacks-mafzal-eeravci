@@ -28,7 +28,6 @@ import { TopStudentsByLevelComponent } from './components/top-students-by-level.
 import { TranscendenceCompletedShowcaseComponent } from './components/transcendence-completed-showcase.component';
 import { UpcomingEventsComponent } from './components/upcoming-events.component';
 import { WeeklyCampusActivityBoardComponent } from './components/weekly-campus-activity-board.component';
-import { WeeklyContributorsLeaderboardComponent } from './components/weekly-contributors-leaderboard.component';
 import { XpRaceBlackholeComponent } from './components/xp-race-blackhole.component';
 
 const NARRATOR_ROTATION_MS = 6500;
@@ -71,7 +70,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
   { id: 'cluster-occupancy', color: '#4cc9f0', text: "Live seat occupancy across every cluster on campus." },
   { id: 'evaluation-heatmap', color: '#16f0a6', text: 'When evaluations actually happen, by day and hour.' },
   { id: 'returning-students', color: '#ffb020', text: 'Welcoming back students who returned after time away.' },
-  { id: 'weekly-contributors', color: '#38e19a', text: 'Who earned the most coalition points this week.' },
   { id: 'transcendence', color: '#be2ad1', text: 'Celebrating every student who reached Transcendence.' },
   { id: 'showcase', color: '#34e2c4', text: "Saving the best for last - today's top achievements." },
 ];
@@ -103,7 +101,6 @@ const TV_NARRATOR_CUES: NarratorCue[] = [
     NarratorRobotComponent,
     NarratorTargetDirective,
     WeeklyCampusActivityBoardComponent,
-    WeeklyContributorsLeaderboardComponent,
     UpcomingEventsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

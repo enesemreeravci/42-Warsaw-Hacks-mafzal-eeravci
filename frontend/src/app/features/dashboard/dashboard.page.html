@@ -238,12 +238,9 @@
               <app-returning-students />
             }
             @case (12) {
-              <app-weekly-contributors-leaderboard />
-            }
-            @case (13) {
               <app-transcendence-completed-showcase />
             }
-            @case (14) {
+            @case (13) {
               <app-robot-achievement-showcase [achievements]="store.data().livePulse?.achievements ?? []" />
             }
           }

@@ -22,6 +22,7 @@ interface FallingPicture {
   delayMs: number;
   durationMs: number;
   dateUnlockedLabel: string;
+  fireworkDelaySec: number;
 }
 
 /** Builds a batch of 3-5 falling pictures starting at `startIndex` in `list`, wrapping around
@@ -33,13 +34,17 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
   const count = Math.min(MAX_FALLING, Math.max(MIN_FALLING, list.length));
   return Array.from({ length: count }, (_, i) => {
     const achievement = list[(startIndex + i) % list.length]!;
+    const delayMs = i * FALL_STAGGER_MS;
+    const durationMs = FALL_DURATION_MS + (i % 3) * 200;
     return {
       key: `${achievement.projectUserId}-${cycle}-${i}`,
       achievement,
       leftPct: ((i + 1) * 100) / (count + 1),
-      delayMs: i * FALL_STAGGER_MS,
-      durationMs: FALL_DURATION_MS + (i % 3) * 200,
+      delayMs,
+      durationMs,
       dateUnlockedLabel: formatWarsawDate(achievement.completedAt),
+      // Fires right as the picture finishes landing, not mid-fall.
+      fireworkDelaySec: (delayMs + durationMs) / 1000,
     };
   });
 }
@@ -65,7 +70,6 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
         @if (achievements().length === 0) {
           <app-empty-state title="No achievements yet" description="Recent completions will be celebrated here as they happen." />
         } @else {
-          <app-fireworks-overlay />
           <div class="showcase__falling">
             @for (item of fallingBatch(); track item.key) {
               <div
@@ -74,7 +78,10 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
                 [style.--delay.ms]="item.delayMs"
                 [style.--duration.ms]="item.durationMs"
               >
-                <app-avatar [imageUrl]="item.achievement.imageUrl" [name]="item.achievement.displayName" [size]="96" />
+                <div class="falling-picture__avatar-wrap">
+                  <app-avatar [imageUrl]="item.achievement.imageUrl" [name]="item.achievement.displayName" [size]="96" />
+                  <app-fireworks-overlay variant="tile" [repeatCount]="4" [startDelaySec]="item.fireworkDelaySec" />
+                </div>
                 <span class="falling-picture__name">{{ item.achievement.displayName }}</span>
                 <span class="falling-picture__project">{{ item.achievement.projectName }}</span>
                 <span class="falling-picture__meta">
@@ -127,6 +134,18 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
       align-items: center;
       gap: var(--space-1);
       transform: translateX(-50%);
+    }
+
+    /* Sized a bit larger than the 96px avatar it wraps, so the localized firework burst
+     * (positioned/clipped to this wrapper, not the whole falling-picture column) has some room
+     * to breathe around the picture instead of clipping right at its edge. */
+    .falling-picture__avatar-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     @media (prefers-reduced-motion: no-preference) {

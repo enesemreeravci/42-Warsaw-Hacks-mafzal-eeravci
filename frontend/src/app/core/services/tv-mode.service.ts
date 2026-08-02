@@ -4,12 +4,12 @@ const DEFAULT_ROTATION_SECONDS = 15;
 /** The Hive, the Level-Up Spotlight, Weekly XP Insights, the Coalition Leaderboard, Live
  * Evaluations, the two Weekly Campus Activity rankings (Most Campus Time, Most Recent Session
  * Started), Night Owls, Early Birds, the Cluster Occupancy Map, the Evaluation Activity Heatmap,
- * Returning Students, the Weekly Top Coalition Contributors leaderboard, the Transcendence
- * Completed showcase, and - last, closing out every loop - the Robot Achievement Showcase.
- * Index-matched to SECTION_TITLES below. (The standalone "Weekly Top Coalitions" progress-ring
- * section was removed - it duplicated the coalition standings already shown in the Coalition
- * Leaderboard.) */
-const DASHBOARD_SECTION_COUNT = 15;
+ * Returning Students, the Transcendence Completed showcase, and - last, closing out every loop -
+ * the Robot Achievement Showcase. Index-matched to SECTION_TITLES below. (The standalone "Weekly
+ * Top Coalitions" progress-ring section was removed earlier - it duplicated the coalition
+ * standings already shown in the Coalition Leaderboard. The "Weekly Top Coalition Contributors"
+ * leaderboard was removed too - it never resolved past its loading state.) */
+const DASHBOARD_SECTION_COUNT = 14;
 
 /** Short section names, index-matched to `activeSection`, shown in the unified TV header bar
  * (see app.html) instead of each section rendering its own in-card title. */
@@ -28,7 +28,6 @@ const SECTION_TITLES: readonly string[] = [
   'Cluster Occupancy',
   'Evaluation Activity Heatmap',
   'Welcome Back',
-  'Weekly Top Coalition Contributors',
   'Transcendence Completed',
   'Achievement Unlock',
 ];

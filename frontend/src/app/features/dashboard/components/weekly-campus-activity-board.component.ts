@@ -216,14 +216,18 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     }
 
     /* Main content: overview | podium ───────────────────────────────
-     * The chart/donut sits in the narrower track first (left); the podium (avatars + ranking
-     * list) is placed in the wide track second, via the CSS "order" property, so the graphic
-     * reads as anchored on the left with the student ranking on the right. */
+     * The chart/donut card and the podium are sized to their own natural content (not stretched
+     * into grid tracks that can leave one side of the card looking mostly empty) and laid out as
+     * one compact flex group, chart first via the "order" property so it reads as anchored on
+     * the left with the ranking on the right - then that whole group is centered as a unit
+     * within the card, so left/right outer padding always ends up equal no matter how wide the
+     * card itself is. */
     .board__content {
-      display: grid;
-      grid-template-columns: minmax(180px, 240px) 1fr;
-      gap: var(--space-5);
+      display: flex;
+      flex-wrap: wrap;
       align-items: center;
+      justify-content: center;
+      gap: var(--space-5);
       flex: 1;
     }
 
@@ -240,7 +244,8 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       background: var(--glass-bg-elevated);
       backdrop-filter: blur(var(--glass-blur));
       -webkit-backdrop-filter: blur(var(--glass-blur));
-      align-self: stretch;
+      width: 240px;
+      flex-shrink: 0;
     }
 
     .board__chart-wrap {
@@ -332,6 +337,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       align-items: flex-end;
       justify-content: center;
       gap: var(--space-3);
+      flex-shrink: 0;
     }
 
     .podium-slot {
@@ -486,12 +492,22 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     :host-context(.dashboard--tv) .podium-slot--gold .podium-slot__primary { font-size: 2rem; }
 
     /* TV mode — the donut is far too small at the default 168px on a big screen; give it real
-     * presence, matching the enlarged podium/avatar sizing around it. The overview column has to
-     * widen too, or .board__content's grid track would just clip the bigger chart back down.
-     * (Chart-left/podium-right ordering is now the base layout above, shared by dashboard and TV
-     * alike, so no order override is needed here anymore.) */
-    :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; margin-left: var(--space-3); }
-    :host-context(.dashboard--tv) .board__content { grid-template-columns: minmax(180px, 360px) 1fr; }
+     * presence, matching the enlarged podium/avatar sizing around it. The overview card has to
+     * widen too, or its own padding would clip the bigger chart back down. (Chart-left/
+     * podium-right ordering is now the base layout above, shared by dashboard and TV alike, so
+     * no order override is needed here anymore. .board__content centers the chart+podium group
+     * as a whole, so widening the chart card alone doesn't unbalance the padding on either side.) */
+    :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; }
+    :host-context(.dashboard--tv) .board__overview { width: 380px; }
+    :host-context(.dashboard--tv) .board__content { gap: var(--space-8); }
+
+    /* TV mode — .tv-stage (the full-bleed section wrapper) has zero padding of its own, so
+     * without this the donut chart sits flush against the left edge while the podium's rightmost
+     * card sits flush against the right edge - visibly unbalanced. Padding the whole board
+     * (header + chart/podium row + ranks-4+ list all together, so they stay aligned with each
+     * other) gives both edges - and the gap between the chart and the podium above - matching
+     * breathing room. */
+    :host-context(.dashboard--tv) .board { padding: 0 var(--space-6); }
 
     /* Ranks 4+ list ─────────────────────────────────────────────── */
     .board__rest {
@@ -503,10 +519,15 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       overflow: hidden;
     }
 
+    /* Fixed-width value columns (not auto) - .board__rest-head and each .board__rest-row are
+     * separate grid instances, so "auto" columns size independently per row/header based on
+     * their own content (e.g. the header's "CAMPUS TIME" label vs. a row's "10h 5m" value), which
+     * leaves the header and the data visibly out of column with each other. Fixed widths make
+     * every instance size identically regardless of content, so everything lines up. */
     .board__rest-head,
     .board__rest-row {
       display: grid;
-      grid-template-columns: 2.2rem 2.4rem 1fr auto auto auto;
+      grid-template-columns: 2.2rem 2.4rem 1fr 6.5rem 5rem 6rem;
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-2) var(--space-4);
@@ -540,7 +561,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       font-size: 1.05rem;
       font-weight: 900;
       text-align: center;
-      color: var(--color-text-muted);
+      color: var(--rank-color, var(--color-text-muted));
     }
 
     .board__rest-name {
@@ -578,14 +599,14 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     /* Responsive ──────────────────────────────────────────────────── */
     @media (max-width: 960px) {
       .board__content {
-        grid-template-columns: 1fr;
+        flex-direction: column;
       }
 
       .board__overview {
         flex-direction: row;
-        align-self: auto;
         align-items: flex-start;
         gap: var(--space-5);
+        width: 100%;
       }
 
       .board__chart-wrap {
@@ -616,7 +637,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
       .board__rest-head,
       .board__rest-row {
-        grid-template-columns: 2.2rem 2.4rem 1fr auto;
+        grid-template-columns: 2.2rem 2.4rem 1fr 6.5rem;
       }
     }
   `,

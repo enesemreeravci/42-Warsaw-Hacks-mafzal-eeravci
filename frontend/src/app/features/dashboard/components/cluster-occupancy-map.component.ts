@@ -144,7 +144,12 @@ function seatView(w: ClusterWorkstation): SeatView {
 
     .occupancy__grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      // auto-fit (not auto-fill): with few clusters, auto-fill still reserves phantom empty
+      // tracks past the real ones (e.g. 3 cards in a row wide enough for 4 minmax columns would
+      // leave an empty 4th track), pushing the real cards left with visible empty space on the
+      // right. auto-fit collapses those empty tracks so the 1fr on the real columns can grow to
+      // actually fill the row, keeping left/right margins and inter-card gaps even.
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: var(--space-4);
       overflow-y: auto;
     }
@@ -236,14 +241,20 @@ function seatView(w: ClusterWorkstation): SeatView {
      * min-height, bigger cluster cards, bigger seats, and the grid itself set to flex so it
      * actually claims the vertical space left over by the summary stats instead of hugging its
      * own content size. */
-    :host-context(.dashboard--tv) .occupancy { min-height: 86vh; }
+    /* TV mode — .tv-stage (the full-bleed section wrapper) has zero padding of its own, so
+     * without this the cluster grid would run edge-to-edge, with the top-right card sitting right
+     * under the floating narrator mascot. Padding the whole section gives consistent left/right
+     * and top/bottom breathing room; the gap between cards is already handled by the
+     * .occupancy__grid "gap" property below. */
+    :host-context(.dashboard--tv) .occupancy { min-height: 86vh; padding: var(--space-5) var(--space-6); }
     :host-context(.dashboard--tv) .stat__value { font-size: 2.6rem; }
     :host-context(.dashboard--tv) .stat__label { font-size: 0.9rem; }
     :host-context(.dashboard--tv) .occupancy__grid {
       flex: 1;
-      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
       grid-auto-rows: 1fr;
       align-content: stretch;
+      justify-content: center;
       gap: var(--space-6);
     }
     :host-context(.dashboard--tv) .cluster-card { padding: var(--space-6); gap: var(--space-5); }

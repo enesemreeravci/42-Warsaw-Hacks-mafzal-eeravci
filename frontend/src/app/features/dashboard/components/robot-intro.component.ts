@@ -64,7 +64,7 @@ function prefersReducedMotion(): boolean {
       line-height: 1.6;
       color: var(--color-text-primary);
       min-height: 2.4em;
-      text-align: left;
+      text-align: center;
       white-space: pre-line;
     }
 
