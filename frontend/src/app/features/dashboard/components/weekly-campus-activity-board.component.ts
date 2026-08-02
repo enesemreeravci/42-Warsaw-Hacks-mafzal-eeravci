@@ -723,13 +723,14 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly chartSubLabel = computed(() => {
     switch (this.metric()) {
       case 'time':
-        return `Top ${VISIBLE_COUNT} time`;
+        return 'Time';
       case 'sessions':
-        return `Top ${VISIBLE_COUNT} sessions`;
+        return 'Sessions';
+      // Night Owls / Early Birds already say so in the panel title above this donut, so the
+      // sub-label just needs the unit, not a repeat of which time-of-day window it is.
       case 'nightOwls':
-        return `Top ${VISIBLE_COUNT} night hours`;
       case 'earlyBirds':
-        return `Top ${VISIBLE_COUNT} morning hours`;
+        return 'Hours';
     }
   });
 
