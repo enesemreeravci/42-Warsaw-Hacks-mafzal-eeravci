@@ -41,7 +41,7 @@ describe('WeeklyCampusActivityBoardComponent', () => {
 
     fixture = TestBed.createComponent(WeeklyCampusActivityBoardComponent);
     fixture.componentRef.setInput('metric', 'time');
-    fixture.componentRef.setInput('title', 'Most Campus Time — Last 7 Days');
+    fixture.componentRef.setInput('title', 'Most Campus Time (Last 7 Days)');
   });
 
   it('shows the loading message while activity is null and no error is recorded', async () => {
