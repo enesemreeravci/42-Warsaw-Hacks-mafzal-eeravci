@@ -48,8 +48,8 @@ interface PodiumSlot {
 
 type BoardState = 'loading' | 'error' | 'empty' | 'ready';
 
-const VISIBLE_COUNT = 5;
-const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
+const VISIBLE_COUNT = 10;
+const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1', '#38e19a', '#16f0a6', '#ffb020', '#ff5470', '#52bdff'];
 
 @Component({
   selector: 'app-weekly-campus-activity-board',
@@ -212,10 +212,13 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
       font-weight: 700;
     }
 
-    /* Main content: overview | podium ───────────────────────────── */
+    /* Main content: podium | overview ─────────────────────────────
+     * Podium sits in the wide track first (left); the donut/overview card is placed in the
+     * narrower track second, via the CSS "order" property, so it reads as shifted toward the
+     * right side of the card rather than anchored at the far left. */
     .board__content {
       display: grid;
-      grid-template-columns: minmax(180px, 240px) 1fr;
+      grid-template-columns: 1fr minmax(180px, 240px);
       gap: var(--space-5);
       align-items: center;
       flex: 1;
@@ -223,6 +226,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
     /* Overview: donut chart + summary stats ─────────────────────── */
     .board__overview {
+      order: 2;
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
@@ -320,6 +324,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
 
     /* Podium ──────────────────────────────────────────────────────── */
     .board__podium {
+      order: 1;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -466,12 +471,12 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
     /* TV mode — the section's identity ("Most Campus Time" / "Most Recent Session Started") is
      * shown once in the unified TV header bar instead of repeating it on the card. The "last
      * updated"/range meta line stays, since it's live info rather than a redundant label. With
-     * the title gone, it's the only text in the header, so it's nudged toward the right instead
-     * of sitting isolated at the far left edge. */
+     * the title gone, it's the only text in the header, so it's centered top-middle instead of
+     * sitting isolated at the far left edge (also keeps it clear of the floating narrator
+     * mascot, which tends to sit around the TV stage's top-right corner). */
     :host-context(.dashboard--tv) .board__title { display: none; }
-    // padding-right (not just text-align) keeps this clear of the floating narrator mascot,
-    // which tends to sit right around the TV stage's top-right corner.
-    :host-context(.dashboard--tv) .board__meta { text-align: right; padding-right: var(--space-8); }
+    :host-context(.dashboard--tv) .board__header { align-items: center; }
+    :host-context(.dashboard--tv) .board__meta { text-align: center; }
 
     :host-context(.dashboard--tv) .board__chart-total   { font-size: 2.1rem; }
     :host-context(.dashboard--tv) .podium-slot__primary { font-size: 1.6rem; }
@@ -481,7 +486,7 @@ const RANK_COLORS = ['#ffd700', '#b0b8c8', '#cd7f32', '#4cc9f0', '#be2ad1'];
      * presence, matching the enlarged podium/avatar sizing around it. The overview column has to
      * widen too, or .board__content's grid track would just clip the bigger chart back down. */
     :host-context(.dashboard--tv) .board__chart-wrap { max-width: 320px; }
-    :host-context(.dashboard--tv) .board__content { grid-template-columns: minmax(180px, 360px) 1fr; }
+    :host-context(.dashboard--tv) .board__content { grid-template-columns: 1fr minmax(180px, 360px); }
 
     /* Ranks 4+ list ─────────────────────────────────────────────── */
     .board__rest {
@@ -690,13 +695,13 @@ export class WeeklyCampusActivityBoardComponent {
   protected readonly chartSubLabel = computed(() => {
     switch (this.metric()) {
       case 'time':
-        return 'Top 5 time';
+        return `Top ${VISIBLE_COUNT} time`;
       case 'sessions':
-        return 'Top 5 sessions';
+        return `Top ${VISIBLE_COUNT} sessions`;
       case 'nightOwls':
-        return 'Top 5 night hours';
+        return `Top ${VISIBLE_COUNT} night hours`;
       case 'earlyBirds':
-        return 'Top 5 morning hours';
+        return `Top ${VISIBLE_COUNT} morning hours`;
     }
   });
 

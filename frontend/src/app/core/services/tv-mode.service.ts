@@ -12,7 +12,9 @@ const DASHBOARD_SECTION_COUNT = 16;
 /** Short section names, index-matched to `activeSection`, shown in the unified TV header bar
  * (see app.html) instead of each section rendering its own in-card title. */
 const SECTION_TITLES: readonly string[] = [
-  'The Hive',
+  // "The Hive" section: cadet avatars drift freely across the whole screen, so it reads in the
+  // unified header as "Scattered on Campus" rather than its internal component name.
+  'Scattered on Campus',
   'Recently Completed',
   'Weekly Experience',
   'Coalition Leaderboard',

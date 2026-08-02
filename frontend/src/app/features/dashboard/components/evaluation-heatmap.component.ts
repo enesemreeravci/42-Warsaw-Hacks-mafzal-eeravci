@@ -238,10 +238,18 @@ function heatmapCellColor(count: number, p90: number): string {
       color: var(--color-text-primary);
     }
 
-    :host-context(.dashboard--tv) .stat__value { font-size: 2rem; }
-    :host-context(.dashboard--tv) .heatmap__day-label { font-size: 1rem; }
-    :host-context(.dashboard--tv) .heatmap__cell { min-height: 24px; }
-    :host-context(.dashboard--tv) .eval-heatmap__insights { font-size: 1.05rem; }
+    /* TV mode — bigger cells/labels/stats so the heatmap genuinely fills a large screen. */
+    :host-context(.dashboard--tv) .stat__value { font-size: 2.4rem; }
+    :host-context(.dashboard--tv) .stat__label { font-size: 0.85rem; }
+    :host-context(.dashboard--tv) .eval-heatmap__body { padding: var(--space-6); gap: var(--space-5); }
+    :host-context(.dashboard--tv) .heatmap { gap: var(--space-3); }
+    :host-context(.dashboard--tv) .heatmap__day-label { font-size: 1.3rem; }
+    :host-context(.dashboard--tv) .heatmap__grid { gap: 5px; }
+    :host-context(.dashboard--tv) .heatmap__cell { min-height: 34px; border-radius: 5px; }
+    :host-context(.dashboard--tv) .heatmap__hour-labels { font-size: 0.95rem; }
+    :host-context(.dashboard--tv) .eval-heatmap__insights { font-size: 1.15rem; gap: var(--space-5); }
+    :host-context(.dashboard--tv) .eval-heatmap__legend { font-size: 1rem; }
+    :host-context(.dashboard--tv) .legend-bar { width: 200px; height: 14px; }
   `,
 })
 export class EvaluationHeatmapComponent {

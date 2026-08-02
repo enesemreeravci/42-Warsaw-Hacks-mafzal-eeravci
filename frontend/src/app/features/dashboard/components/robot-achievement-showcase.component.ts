@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input
 import type { AchievementEntry } from '../../../core/models/api.models';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
+import { FireworksOverlayComponent } from './fireworks-overlay.component';
 
 /** A batch of falling achievement pictures runs for at most this long before the next batch
  * takes over - keeps every drop-cascade cycle within the required 5s cap. */
@@ -53,7 +54,7 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
 @Component({
   selector: 'app-robot-achievement-showcase',
   standalone: true,
-  imports: [AvatarComponent, EmptyStateComponent],
+  imports: [AvatarComponent, EmptyStateComponent, FireworksOverlayComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="showcase">
@@ -61,6 +62,7 @@ function buildFallingBatch(list: AchievementEntry[], startIndex: number, cycle: 
         @if (achievements().length === 0) {
           <app-empty-state title="No achievements yet" description="Recent completions will be celebrated here as they happen." />
         } @else {
+          <app-fireworks-overlay />
           <div class="showcase__falling">
             @for (item of fallingBatch(); track item.key) {
               <div

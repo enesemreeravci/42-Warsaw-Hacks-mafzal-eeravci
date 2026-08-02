@@ -1,8 +1,9 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import type { CoalitionStanding } from '../../../core/models/api.models';
+import { TvModeService } from '../../../core/services/tv-mode.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CoalitionFlagComponent } from './coalition-flag.component';
@@ -43,7 +44,7 @@ interface CoalitionCard {
                 <app-avatar
                   [imageUrl]="leader.standing.topContributor?.imageUrl ?? null"
                   [name]="leader.standing.topContributor?.displayName ?? leader.standing.name"
-                  [size]="168"
+                  [size]="leaderAvatarSize()"
                 />
                 <p class="leaderboard__center-name">{{ leader.standing.topContributor?.displayName ?? 'No contributor yet' }}</p>
                 @if (leader.standing.topContributor; as top) {
@@ -394,12 +395,28 @@ interface CoalitionCard {
         height: 1px;
       }
     }
+
+    /* TV mode — the donut/cards read as noticeably too small on a big screen at the default
+     * sizing, so this scales the whole card up to genuinely fill it. */
+    :host-context(.dashboard--tv) .leaderboard__body { min-height: 72vh; padding: var(--space-6); }
+    :host-context(.dashboard--tv) .leaderboard__chart-wrap { min-height: 460px; }
+    :host-context(.dashboard--tv) .coalition-card { padding: var(--space-4) var(--space-5); }
+    :host-context(.dashboard--tv) .coalition-card__name { font-size: 1.4rem; }
+    :host-context(.dashboard--tv) .coalition-card__score { font-size: 1.15rem; }
+    :host-context(.dashboard--tv) .coalition-card__percent { font-size: 1.3rem; }
+    :host-context(.dashboard--tv) .contributor-col__name { font-size: 1rem; }
+    :host-context(.dashboard--tv) .contributor-col__value { font-size: 0.95rem; }
   `,
 })
 export class CoalitionLeaderboardComponent {
   readonly standings = input.required<CoalitionStanding[]>();
 
   protected readonly FALLBACK_COLOR = FALLBACK_COLOR;
+
+  private readonly tvMode = inject(TvModeService);
+  /** The `size` avatar input renders as an inline pixel style, so a CSS-only
+   * `:host-context(.dashboard--tv)` override can't reach it - this picks the TV-scaled size directly. */
+  protected readonly leaderAvatarSize = computed(() => (this.tvMode.enabled() ? 220 : 168));
 
   private readonly totalScore = computed(() => this.standings().reduce((sum, s) => sum + Math.max(s.score, 0), 0));
 

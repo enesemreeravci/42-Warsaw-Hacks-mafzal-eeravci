@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ReturningStudentEntry, ReturningStudentsResponse } from '../../../core/models/api.models';
 import { ApiService } from '../../../core/services/api.service';
+import { TvModeService } from '../../../core/services/tv-mode.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 
@@ -46,7 +47,7 @@ const ROTATION_MS = 9000;
           @for (student of spotlight(); track student.userId; let i = $index) {
             @if (i === activeIndex()) {
               <div class="spotlight-card">
-                <app-avatar [imageUrl]="student.imageUrl" [name]="student.displayName" [size]="140" />
+                <app-avatar [imageUrl]="student.imageUrl" [name]="student.displayName" [size]="avatarSize()" />
                 <p class="spotlight-card__headline">
                   <strong>{{ student.login }}</strong> is back after {{ student.inactiveDays }} days
                 </p>
@@ -80,7 +81,9 @@ const ROTATION_MS = 9000;
       gap: var(--space-5);
       height: 100%;
       min-height: 60vh;
-      justify-content: center;
+      // space-evenly (not center) spreads the summary/spotlight/dots across the full available
+      // height instead of clumping them together in the middle with dead space above and below.
+      justify-content: space-evenly;
     }
 
     .returning__summary {
@@ -188,17 +191,26 @@ const ROTATION_MS = 9000;
       transform: scale(1.3);
     }
 
-    :host-context(.dashboard--tv) .spotlight-card__headline { font-size: 2rem; }
-    :host-context(.dashboard--tv) .stat__value { font-size: 2rem; }
+    :host-context(.dashboard--tv) .spotlight-card__headline { font-size: 2.6rem; }
+    :host-context(.dashboard--tv) .spotlight-card__meta { font-size: 1.15rem; gap: var(--space-4); }
+    :host-context(.dashboard--tv) .stat__value { font-size: 2.6rem; }
+    :host-context(.dashboard--tv) .stat__label { font-size: 0.85rem; }
+    :host-context(.dashboard--tv) .stat { padding: var(--space-4) var(--space-5); }
+    :host-context(.dashboard--tv) .dot { width: 12px; height: 12px; }
   `,
 })
 export class ReturningStudentsComponent {
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly tvMode = inject(TvModeService);
 
   protected readonly loading = signal(true);
   protected readonly data = signal<ReturningStudentsResponse | null>(null);
   protected readonly activeIndex = signal(0);
+
+  /** The `size` avatar input renders as an inline pixel style, so a CSS-only
+   * `:host-context(.dashboard--tv)` override can't reach it - this picks the TV-scaled size directly. */
+  protected readonly avatarSize = computed(() => (this.tvMode.enabled() ? 220 : 140));
 
   protected readonly spotlight = computed<ReturningStudentEntry[]>(() => this.data()?.students.slice(0, SPOTLIGHT_SIZE) ?? []);
 

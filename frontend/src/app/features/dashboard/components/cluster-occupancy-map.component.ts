@@ -231,8 +231,16 @@ function seatView(w: ClusterWorkstation): SeatView {
       text-align: center;
     }
 
-    :host-context(.dashboard--tv) .stat__value { font-size: 2rem; }
-    :host-context(.dashboard--tv) .seat { width: 22px; height: 22px; }
+    /* TV mode — bigger cluster cards, seats, and stats so the grid genuinely fills a large
+     * screen instead of just technically reaching full container height with small content. */
+    :host-context(.dashboard--tv) .stat__value { font-size: 2.4rem; }
+    :host-context(.dashboard--tv) .stat__label { font-size: 0.85rem; }
+    :host-context(.dashboard--tv) .occupancy__grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-5); }
+    :host-context(.dashboard--tv) .cluster-card { padding: var(--space-5); gap: var(--space-4); }
+    :host-context(.dashboard--tv) .cluster-card__name { font-size: 1.6rem; }
+    :host-context(.dashboard--tv) .cluster-card__occupancy { font-size: 1.05rem; }
+    :host-context(.dashboard--tv) .cluster-card__footer { font-size: 0.95rem; }
+    :host-context(.dashboard--tv) .seat { width: 30px; height: 30px; border-radius: 6px; }
   `,
 })
 export class ClusterOccupancyMapComponent {
